@@ -33,6 +33,16 @@ START -> planner -> tool_runner -> reviewer -> END
 
 Каждый узел получает текущее состояние, возвращает частичное обновление состояния и при необходимости публикует телеметрию шага.
 
+### Диаграмма графа
+
+```mermaid
+flowchart LR
+    start(["START"]) --> planner["planner"]
+    planner --> tool_runner["tool_runner"]
+    tool_runner --> reviewer["reviewer"]
+    reviewer --> finish(["END"])
+```
+
 ## Состояние графа
 
 Состояние описано через `TypedDict` `ExecutionState`.
@@ -159,6 +169,25 @@ graph.add_edge("validator", "reviewer")
 5. При необходимости публикуйте step telemetry через `step_emitter`.
 6. Обновите тесты и документацию.
 
+### Практический пример добавления узла
+
+Если нужен дополнительный шаг проверки перед финальным ответом, удобно вставить `validator` между `tool_runner` и `reviewer`.
+
+Идея изменений:
+
+```python
+graph.add_node("validator", self._validator)
+graph.add_edge("tool_runner", "validator")
+graph.add_edge("validator", "reviewer")
+```
+
+Что еще нужно сделать помимо `add_node(...)` и `add_edge(...)`:
+
+- при необходимости добавить новое поле в `ExecutionState`;
+- передать через `step_emitter` telemetry нового шага;
+- обновить проверки в тестах на ожидаемое число шагов;
+- обновить описание графа в документации.
+
 ## Как изменить маршрут графа
 
 Если нужен условный переход, придерживайтесь такого подхода:
@@ -217,8 +246,9 @@ Gateway:
 
 1. `uv run ruff check .`
 2. `uv run mypy app tests`
-3. `uv run pytest tests/integration/test_api_flow.py -q`
-4. `uv run pytest tests/integration/test_kafka_flow.py -q`
+3. `uv run pytest tests/unit/test_execution_workflow.py -q`
+4. `uv run pytest tests/integration/test_api_flow.py -q`
+5. `uv run pytest tests/integration/test_kafka_flow.py -q`
 
 Если менялась документация:
 
@@ -233,6 +263,37 @@ uv run mkdocs build
 - проверьте `execution.finished` или `execution.failed`;
 - проверьте read side на `/api/v1/executions`;
 - проверьте связанный Kafka flow.
+
+## Тестирование LangGraph-слоя
+
+Для `LangGraph`-части в проекте полезно держать два уровня тестов:
+
+### Быстрые unit-тесты
+
+Они должны проверять:
+
+- что граф вообще выполняется;
+- что узлы отдают ожидаемые ключи состояния;
+- что `step_emitter` вызывается для каждого шага;
+- что итоговый `final_output` собирается корректно.
+
+Типовой кандидат для такого теста:
+
+- [tests/unit/test_execution_workflow.py](d:/p/FastAPI/FastAPI_Layers/tests/unit/test_execution_workflow.py)
+
+### Интеграционные тесты
+
+Они должны проверять:
+
+- создание `execution.started`;
+- публикацию `step.completed`;
+- завершение `execution.finished`;
+- корректную материализацию `execution_runs` и `execution_steps`.
+
+Типовые файлы:
+
+- [tests/integration/test_api_flow.py](d:/p/FastAPI/FastAPI_Layers/tests/integration/test_api_flow.py)
+- [tests/integration/test_kafka_flow.py](d:/p/FastAPI/FastAPI_Layers/tests/integration/test_kafka_flow.py)
 
 ## Частые ошибки при работе с LangGraph
 

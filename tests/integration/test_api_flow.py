@@ -58,3 +58,41 @@ async def test_execution_api_creates_run_projection(
     assert list_response.status_code == 200
     payload = list_response.json()
     assert payload["total"] >= 1
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_execution_api_runs_langgraph_steps_in_expected_order(
+    client: AsyncClient, runtime: AppRuntime
+) -> None:
+    response = await client.post(
+        "/api/v1/executions",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "graph_definition_id": "graph-sequence",
+            "input_payload": {"objective": "Validate ordered workflow execution"},
+        },
+    )
+    assert response.status_code == 200
+    execution_id = response.json()["entity_id"]
+
+    await asyncio.sleep(0.05)
+    await apply_emitted_events(runtime)
+
+    execution_response = await client.get(
+        f"/api/v1/executions/{execution_id}",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert execution_response.status_code == 200
+    payload = execution_response.json()
+
+    assert payload["status"] == "succeeded"
+    assert payload["output_payload"]["tool_output"].startswith(
+        "Prepared actionable execution summary"
+    )
+    assert payload["output_payload"]["plan"].startswith("[" )
+    assert [step["step_name"] for step in payload["steps"]] == [
+        "planner",
+        "tool_runner",
+        "reviewer",
+    ]

@@ -15,6 +15,19 @@
 - `alerting` выполняет дедупликацию сигналов и маршрутизацию уведомлений
 - `projections` материализует модели чтения в PostgreSQL для всех API
 
+### Схема выполнения сценария
+
+```mermaid
+flowchart LR
+    api["POST /api/v1/executions"] --> started["execution.started"]
+    started --> planner["planner"]
+    planner --> tool_runner["tool_runner"]
+    tool_runner --> reviewer["reviewer"]
+    reviewer --> finished["execution.finished"]
+    finished --> projections["PostgreSQL projections"]
+    projections --> read_api["GET /api/v1/executions/{id}"]
+```
+
 ## Модель CQRS
 
 - Контур записи: `FastAPI` валидирует команду и публикует событие в Kafka
