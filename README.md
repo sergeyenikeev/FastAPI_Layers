@@ -20,6 +20,7 @@
 
 Подробное описание архитектуры находится в [docs/architecture/overview.md](docs/architecture/overview.md).
 Подробное руководство по разработке находится в [docs/development/guide.md](docs/development/guide.md).
+Руководство по использованию `LangGraph` находится в [docs/development/langgraph.md](docs/development/langgraph.md).
 
 ## Поток событий
 

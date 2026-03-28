@@ -137,6 +137,20 @@ uv run mkdocs build
 - `scripts/` служебные скрипты, например bootstrap топиков.
 - `tests/` модульные и интеграционные тесты.
 
+## Использование LangGraph в проекте
+
+`LangGraph` остается основой orchestration-слоя и используется в [app/modules/orchestration/graph.py](d:/p/FastAPI/FastAPI_Layers/app/modules/orchestration/graph.py) для сборки сценария выполнения.
+
+В текущей реализации:
+
+- `StateGraph` описывает граф состояния выполнения;
+- `START` и `END` задают явные точки входа и завершения;
+- узлы `planner`, `tool_runner` и `reviewer` оформлены как асинхронные шаги;
+- вызов `ainvoke(...)` запускает исполнение графа;
+- step-level события и telemetry публикуются через `step_emitter`.
+
+Подробное практическое руководство вынесено в [docs/development/langgraph.md](d:/p/FastAPI/FastAPI_Layers/docs/development/langgraph.md).
+
 ## Архитектурные правила разработки
 
 ### CQRS
