@@ -18,7 +18,12 @@ from app.modules.monitoring.schemas import ComponentHealth, HealthSummary
 
 
 class HealthService:
-    def __init__(self, settings: Settings, engine: AsyncEngine, publisher: PublisherProtocol) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        engine: AsyncEngine,
+        publisher: PublisherProtocol,
+    ) -> None:
         self.settings = settings
         self.engine = engine
         self.publisher = publisher

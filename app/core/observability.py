@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from opentelemetry import trace
@@ -31,10 +31,8 @@ def setup_telemetry(app: FastAPI, engine: AsyncEngine, settings: Settings) -> No
     if settings.otel_exporter_otlp_endpoint:
         exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
         provider.add_span_processor(BatchSpanProcessor(exporter))
-    try:
+    with suppress(Exception):
         trace.set_tracer_provider(provider)
-    except Exception:  # pragma: no cover - OpenTelemetry guards global provider state
-        pass
 
     app_id = id(app)
     if app_id not in _instrumented_fastapi_apps:

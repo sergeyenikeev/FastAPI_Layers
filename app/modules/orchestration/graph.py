@@ -86,7 +86,10 @@ class ExecutionWorkflow:
         input_payload = state.get("input_payload", {})
         tool_output = {
             "selected_tools": ["context-summary", "risk-scan", "cost-estimator"],
-            "summary": f"Prepared actionable execution summary for: {input_payload.get('objective', 'objective')}",
+            "summary": (
+                "Prepared actionable execution summary for: "
+                f"{input_payload.get('objective', 'objective')}"
+            ),
             "plan_excerpt": plan[:280],
             "_telemetry": {
                 "content": "tool-runner-local",
@@ -112,7 +115,8 @@ class ExecutionWorkflow:
         started = time.perf_counter()
         model_context = state.get("model_context", {})
         prompt = (
-            "You are the review agent. Validate the plan and tool output, then produce the final result.\n"
+            "You are the review agent. Validate the plan and tool output, "
+            "then produce the final result.\n"
             f"Plan: {state.get('plan', '')}\n"
             f"Tool output: {state.get('tool_output', '')}\n"
             f"Input payload: {state.get('input_payload', {})}"

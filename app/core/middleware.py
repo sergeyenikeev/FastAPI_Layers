@@ -4,8 +4,7 @@ import time
 from uuid import uuid4
 
 from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from app.core.context import ensure_correlation_id, set_trace_id
 from app.core.logging import get_logger

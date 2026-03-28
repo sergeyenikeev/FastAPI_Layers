@@ -5,8 +5,8 @@ from typing import cast
 import pytest
 
 from app.messaging.kafka import InMemoryPublisher
-from app.runtime import AppRuntime
 from app.modules.registry.schemas import CreateAgentRequest
+from app.runtime import AppRuntime
 
 
 @pytest.mark.asyncio

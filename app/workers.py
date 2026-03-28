@@ -281,7 +281,10 @@ class AlertHandler:
                 source_event=event,
                 severity=report["severity"],
                 title=f"Anomaly detected: {report['anomaly_type']}",
-                description=f"{report['entity_type']}={report['entity_id']} score={report['score']}",
+                description=(
+                    f"{report['entity_type']}={report['entity_id']} "
+                    f"score={report['score']}"
+                ),
                 entity_type=report["entity_type"],
                 entity_id=report["entity_id"],
             )
@@ -293,7 +296,10 @@ class AlertHandler:
                 source_event=event,
                 severity=report["severity"],
                 title=f"Drift detected: {report['drift_type']}",
-                description=f"{report['entity_type']}={report['entity_id']} score={report['score']}",
+                description=(
+                    f"{report['entity_type']}={report['entity_id']} "
+                    f"score={report['score']}"
+                ),
                 entity_type=report["entity_type"],
                 entity_id=report["entity_id"],
             )

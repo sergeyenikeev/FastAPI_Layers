@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -18,7 +18,7 @@ class ListParams(BaseModel):
     q: str | None = None
 
 
-class Page(APIModel, Generic[T]):
+class Page[T](APIModel):
     items: list[T]
     total: int
     page: int

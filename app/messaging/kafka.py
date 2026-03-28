@@ -198,30 +198,29 @@ class BaseConsumerWorker:
         event = deserialize_event(record.value)
         for attempt in range(1, self.max_retries + 1):
             try:
-                async with span(f"kafka.consume.{record.topic}"):
-                    async with self.session_factory() as session:
-                        if await self._is_processed(session, event.event_id):
-                            await session.rollback()
-                            await self._commit(record)
-                            logger.info(
-                                "kafka.event.skipped_idempotent",
-                                worker=self.name,
-                                event_id=event.event_id,
-                                topic=record.topic,
-                            )
-                            return
-
-                        await self.handler(event, record, session)
-                        session.add(
-                            ProcessedEvent(
-                                consumer_group=self.group_id,
-                                event_id=event.event_id,
-                                topic=record.topic,
-                                partition=record.partition,
-                                offset=record.offset,
-                            )
+                async with span(f"kafka.consume.{record.topic}"), self.session_factory() as session:
+                    if await self._is_processed(session, event.event_id):
+                        await session.rollback()
+                        await self._commit(record)
+                        logger.info(
+                            "kafka.event.skipped_idempotent",
+                            worker=self.name,
+                            event_id=event.event_id,
+                            topic=record.topic,
                         )
-                        await session.commit()
+                        return
+
+                    await self.handler(event, record, session)
+                    session.add(
+                        ProcessedEvent(
+                            consumer_group=self.group_id,
+                            event_id=event.event_id,
+                            topic=record.topic,
+                            partition=record.partition,
+                            offset=record.offset,
+                        )
+                    )
+                    await session.commit()
 
                 await self._commit(record)
                 return
