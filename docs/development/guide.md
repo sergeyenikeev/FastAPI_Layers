@@ -7,6 +7,7 @@
 ## Базовые требования
 
 - Python `3.13+`
+- `uv`
 - Docker и Docker Compose
 - Git
 - GNU Make или совместимый `make`
@@ -23,7 +24,7 @@ cp .env.example .env
 2. Установите зависимости:
 
 ```bash
-make install
+uv sync --extra dev
 ```
 
 3. Поднимите инфраструктуру:
@@ -68,24 +69,41 @@ docker compose up postgres redis kafka otel-collector prometheus
 2. Запустите приложение локально:
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
 3. При необходимости отдельно запустите воркеры:
 
 ```bash
 set WORKER_ROLE=projection
-python -m app.worker
+uv run python -m app.worker
 ```
 
 ```bash
 set WORKER_ROLE=analytics
-python -m app.worker
+uv run python -m app.worker
 ```
 
 ```bash
 set WORKER_ROLE=alerts
-python -m app.worker
+uv run python -m app.worker
+```
+
+## Работа через uv
+
+`uv` является основным инструментом для локальной разработки в этом репозитории.
+
+- `uv sync --extra dev` создает и синхронизирует виртуальное окружение проекта
+- `uv run ...` запускает команды внутри проектного окружения
+- `uv lock` обновляет lock-файл зависимостей
+
+Рекомендуемый базовый цикл:
+
+```bash
+uv sync --extra dev
+uv run pytest
+uv run mypy app tests
+uv run mkdocs build
 ```
 
 ## Структура репозитория
@@ -195,13 +213,13 @@ alembic revision -m "add new entity"
 ### Применение миграций
 
 ```bash
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
 ### Откат миграций
 
 ```bash
-alembic downgrade -1
+uv run alembic downgrade -1
 ```
 
 ### Практические правила
@@ -215,19 +233,20 @@ alembic downgrade -1
 ### Основные команды
 
 ```bash
-make test
+uv run pytest
 ```
 
 ```bash
-make lint
+uv run ruff check .
 ```
 
 ```bash
-make format
+uv run black .
+uv run ruff check . --fix
 ```
 
 ```bash
-make typecheck
+uv run mypy app tests
 ```
 
 ### Что тестировать обязательно
@@ -257,7 +276,7 @@ make typecheck
 ### Локальная подготовка hooks
 
 ```bash
-pre-commit install
+uv run pre-commit install
 ```
 
 ### Практика по качеству
@@ -325,13 +344,13 @@ pre-commit install
 Минимальный набор для проверки после правок в docs:
 
 ```bash
-python -m mkdocs build
+uv run mkdocs build
 ```
 
 ## Checklist перед merge
 
-- Код проходит `make lint`
-- Код проходит `make typecheck`
+- Код проходит `uv run ruff check .`
+- Код проходит `uv run mypy app tests`
 - Нужные тесты добавлены и проходят
 - Миграции синхронизированы с ORM
 - Документация обновлена

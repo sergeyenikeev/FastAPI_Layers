@@ -1,49 +1,47 @@
-PYTHON ?= python
-PIP ?= $(PYTHON) -m pip
+UV ?= uv
 APP_MODULE ?= app.main:app
 
 .PHONY: install dev lint format typecheck test run worker migrations-upgrade migrations-revision docs serve-docs compose-up compose-down
 
 install:
-	$(PIP) install -e .[dev]
+	$(UV) sync --extra dev
 
 dev:
-	uvicorn $(APP_MODULE) --reload --host 0.0.0.0 --port 8080
+	$(UV) run uvicorn $(APP_MODULE) --reload --host 0.0.0.0 --port 8080
 
 lint:
-	ruff check .
+	$(UV) run ruff check .
 
 format:
-	black .
-	ruff check . --fix
+	$(UV) run black .
+	$(UV) run ruff check . --fix
 
 typecheck:
-	mypy app tests
+	$(UV) run mypy app tests
 
 test:
-	pytest
+	$(UV) run pytest
 
 run:
-	uvicorn $(APP_MODULE) --host 0.0.0.0 --port 8080
+	$(UV) run uvicorn $(APP_MODULE) --host 0.0.0.0 --port 8080
 
 worker:
-	$(PYTHON) -m app.worker
+	$(UV) run python -m app.worker
 
 migrations-upgrade:
-	alembic upgrade head
+	$(UV) run alembic upgrade head
 
 migrations-revision:
-	alembic revision --autogenerate -m "$(m)"
+	$(UV) run alembic revision --autogenerate -m "$(m)"
 
 docs:
-	mkdocs build
+	$(UV) run mkdocs build
 
 serve-docs:
-	mkdocs serve
+	$(UV) run mkdocs serve
 
 compose-up:
 	docker compose up --build
 
 compose-down:
 	docker compose down -v
-

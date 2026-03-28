@@ -33,18 +33,18 @@
 ## Локальный запуск
 
 1. Скопируйте `.env.example` в `.env`
-2. Установите зависимости: `make install`
+2. Установите зависимости через `uv`: `uv sync --extra dev`
 3. Поднимите инфраструктуру и сервисы: `docker compose up --build`
-4. При необходимости примените миграции: `make migrations-upgrade`
+4. При необходимости примените миграции: `uv run alembic upgrade head`
 
 API будет доступен по адресу `http://localhost:8080`, метрики по `/metrics`, документация по `/docs`.
 
 ## Запуск тестов
 
-- Полный набор тестов: `make test`
-- Линтеры: `make lint`
-- Форматирование: `make format`
-- Проверка типов: `make typecheck`
+- Полный набор тестов: `uv run pytest`
+- Линтеры: `uv run ruff check .`
+- Форматирование: `uv run black . && uv run ruff check . --fix`
+- Проверка типов: `uv run mypy app tests`
 
 ## Docker
 

@@ -158,11 +158,11 @@
 
 Для большинства изменений достаточно такого порядка:
 
-1. `make format`
-2. `make lint`
-3. `make typecheck`
-4. `make test`
-5. `python -m mkdocs build`
+1. `uv run black .`
+2. `uv run ruff check .`
+3. `uv run mypy app tests`
+4. `uv run pytest`
+5. `uv run mkdocs build`
 
 ## Когда обязательно обновлять несколько слоев сразу
 

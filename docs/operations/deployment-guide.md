@@ -4,7 +4,7 @@
 
 ```bash
 cp .env.example .env
-make install
+uv sync --extra dev
 docker compose up --build
 ```
 
@@ -18,5 +18,5 @@ helm upgrade --install workflow-platform helm/workflow-platform \
 
 ## Миграции
 
-- При локальном запуске через Docker выполняется `alembic upgrade head`
+- При локальном запуске через Docker выполняется `uv run alembic upgrade head`
 - В Helm используется `Job` hook на `pre-install/pre-upgrade`
