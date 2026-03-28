@@ -5,6 +5,9 @@ theme:
 nav:
   - Обзор: index.md
   - API: api.md
+  - Разработка:
+      - Руководство разработчика: development/guide.md
+      - Playbook изменений: development/change-playbook.md
   - Архитектура:
       - Обзор: architecture/overview.md
       - Поток событий: architecture/event-flow.md

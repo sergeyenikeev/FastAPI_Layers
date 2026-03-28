@@ -19,6 +19,7 @@
 - `Prometheus` и `OpenTelemetry` обеспечивают метрики и трассировку
 
 Подробное описание архитектуры находится в [docs/architecture/overview.md](docs/architecture/overview.md).
+Подробное руководство по разработке находится в [docs/development/guide.md](docs/development/guide.md).
 
 ## Поток событий
 
