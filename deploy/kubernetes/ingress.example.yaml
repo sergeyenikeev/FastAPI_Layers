@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: workflow-platform
+  namespace: workflow-platform
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - workflow.example.com
+      secretName: workflow-platform-tls
+  rules:
+    - host: workflow.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: workflow-platform-workflow-platform
+                port:
+                  number: 80

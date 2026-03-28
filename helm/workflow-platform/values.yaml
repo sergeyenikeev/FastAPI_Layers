@@ -1,0 +1,172 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/example/workflow-platform
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+existingSecretName: workflow-platform-secrets
+
+config:
+  appName: workflow-platform
+  appEnv: prod
+  apiV1Prefix: /api/v1
+  debug: "false"
+  prometheusEnabled: "true"
+  kafkaBootstrapServers: kafka.kafka.svc.cluster.local:9092
+  kafkaSecurityProtocol: PLAINTEXT
+  redisUrl: redis://redis-master.redis.svc.cluster.local:6379/0
+  databaseUrl: postgresql+asyncpg://workflow_user:replace-me@postgresql-rw.database.svc.cluster.local:5432/workflow_db
+  otelExporterOtlpEndpoint: http://otel-collector.otel.svc.cluster.local:4317
+  modelProbeUrls: ""
+  alertCooldownSeconds: "300"
+  serviceName: workflow-api
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+  runAsUser: 10001
+  runAsGroup: 10001
+
+api:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  probes:
+    startup:
+      path: /api/v1/health/live
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      failureThreshold: 30
+    liveness:
+      path: /api/v1/health/live
+      initialDelaySeconds: 20
+      periodSeconds: 15
+      failureThreshold: 3
+    readiness:
+      path: /api/v1/health/ready
+      initialDelaySeconds: 20
+      periodSeconds: 15
+      failureThreshold: 3
+  terminationGracePeriodSeconds: 45
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+workers:
+  - name: projection
+    enabled: true
+    replicaCount: 1
+    role: projection
+    consumerGroup: projection-consumers
+    primaryTopic: registry.events
+    resources:
+      requests:
+        cpu: 200m
+        memory: 384Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  - name: analytics
+    enabled: true
+    replicaCount: 1
+    role: analytics
+    consumerGroup: anomaly-consumers
+    primaryTopic: system.metrics
+    resources:
+      requests:
+        cpu: 300m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  - name: alerts
+    enabled: true
+    replicaCount: 1
+    role: alerts
+    consumerGroup: alert-consumers
+    primaryTopic: anomaly.events
+    resources:
+      requests:
+        cpu: 150m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+  hosts:
+    - host: workflow.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: workflow-platform-tls
+      hosts:
+        - workflow.example.com
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+keda:
+  enabled: true
+  pollingInterval: 15
+  cooldownPeriod: 60
+  minReplicaCount: 1
+  maxReplicaCount: 8
+  lagThreshold: "50"
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  ingressNamespaces: []
+  allowPrometheusNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: monitoring
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  additionalLabels: {}
+
+migrations:
+  enabled: true
+  hook: true

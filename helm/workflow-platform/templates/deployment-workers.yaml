@@ -1,0 +1,73 @@
+{{- range .Values.workers }}
+{{- if .enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentOps.fullname" $ }}-{{ .name }}
+  labels:
+    {{- include "agentOps.labels" $ | nindent 4 }}
+    component: {{ .name }}
+spec:
+  replicas: {{ .replicaCount }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "agentOps.selectorLabels" $ | nindent 6 }}
+      component: {{ .name }}
+  template:
+    metadata:
+      labels:
+        {{- include "agentOps.selectorLabels" $ | nindent 8 }}
+        component: {{ .name }}
+    spec:
+      {{- if $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml $.Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "agentOps.serviceAccountName" $ }}
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .name }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["/bin/sh", "docker/start-worker.sh"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "agentOps.fullname" $ }}-config
+            - secretRef:
+                name: {{ $.Values.existingSecretName }}
+          env:
+            - name: WORKER_ROLE
+              value: {{ .role | quote }}
+            - name: SERVICE_NAME
+              value: {{ printf "%s-%s" (include "agentOps.fullname" $) .name | quote }}
+          resources:
+            {{- toYaml .resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
+          startupProbe:
+            exec:
+              command: ["python", "-c", "print('worker-started')"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 18
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "print('worker-live')"]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "print('worker-ready')"]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+---
+{{- end }}
+{{- end }}

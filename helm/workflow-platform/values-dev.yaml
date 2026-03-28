@@ -1,0 +1,72 @@
+config:
+  appEnv: dev
+  debug: "true"
+  serviceName: workflow-api-dev
+
+api:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+workers:
+  - name: projection
+    enabled: true
+    replicaCount: 1
+    role: projection
+    consumerGroup: projection-consumers
+    primaryTopic: registry.events
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  - name: analytics
+    enabled: true
+    replicaCount: 1
+    role: analytics
+    consumerGroup: anomaly-consumers
+    primaryTopic: system.metrics
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  - name: alerts
+    enabled: true
+    replicaCount: 1
+    role: alerts
+    consumerGroup: alert-consumers
+    primaryTopic: anomaly.events
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+autoscaling:
+  enabled: false
+
+keda:
+  enabled: false
+
+ingress:
+  hosts:
+    - host: workflow.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+serviceMonitor:
+  enabled: false

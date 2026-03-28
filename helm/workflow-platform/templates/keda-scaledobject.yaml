@@ -1,0 +1,28 @@
+{{- if .Values.keda.enabled }}
+{{- range .Values.workers }}
+{{- if .enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "agentOps.fullname" $ }}-{{ .name }}
+  labels:
+    {{- include "agentOps.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "agentOps.fullname" $ }}-{{ .name }}
+  pollingInterval: {{ $.Values.keda.pollingInterval }}
+  cooldownPeriod: {{ $.Values.keda.cooldownPeriod }}
+  minReplicaCount: {{ $.Values.keda.minReplicaCount }}
+  maxReplicaCount: {{ $.Values.keda.maxReplicaCount }}
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: {{ $.Values.config.kafkaBootstrapServers | quote }}
+        consumerGroup: {{ .consumerGroup | quote }}
+        topic: {{ .primaryTopic | quote }}
+        lagThreshold: {{ $.Values.keda.lagThreshold | quote }}
+---
+{{- end }}
+{{- end }}
+{{- end }}
+

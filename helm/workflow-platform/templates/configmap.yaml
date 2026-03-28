@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agentOps.fullname" . }}-config
+  labels:
+    {{- include "agentOps.labels" . | nindent 4 }}
+data:
+  APP_NAME: {{ .Values.config.appName | quote }}
+  APP_ENV: {{ .Values.config.appEnv | quote }}
+  API_V1_PREFIX: {{ .Values.config.apiV1Prefix | quote }}
+  DEBUG: {{ .Values.config.debug | quote }}
+  PROMETHEUS_ENABLED: {{ .Values.config.prometheusEnabled | quote }}
+  KAFKA_BOOTSTRAP_SERVERS: {{ .Values.config.kafkaBootstrapServers | quote }}
+  KAFKA_SECURITY_PROTOCOL: {{ .Values.config.kafkaSecurityProtocol | quote }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  DATABASE_URL: {{ .Values.config.databaseUrl | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelExporterOtlpEndpoint | quote }}
+  MODEL_PROBE_URLS: {{ .Values.config.modelProbeUrls | quote }}
+  ALERT_COOLDOWN_SECONDS: {{ .Values.config.alertCooldownSeconds | quote }}
+

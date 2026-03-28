@@ -1,0 +1,17 @@
+site_name: Платформа эксплуатации сценариев
+site_description: Централизованная платформа для запуска и эксплуатации распределенных сценариев
+theme:
+  name: material
+nav:
+  - Обзор: index.md
+  - API: api.md
+  - Архитектура:
+      - Обзор: architecture/overview.md
+      - Поток событий: architecture/event-flow.md
+      - Kafka: architecture/kafka.md
+  - Эксплуатация:
+      - Helm и Kubernetes: operations/helm-kubernetes.md
+      - Руководство по деплою: operations/deployment-guide.md
+      - Руководство по мониторингу: operations/monitoring-guide.md
+      - Операционный регламент: operations/runbook.md
+      - Усиление продакшен-контура: operations/production-hardening.md

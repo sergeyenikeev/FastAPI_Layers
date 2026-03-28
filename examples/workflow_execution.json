@@ -1,0 +1,16 @@
+{
+  "graph_definition_id": "graph-demo",
+  "input_payload": {
+    "objective": "Investigate anomalous latency increase in the order enrichment workflow",
+    "context": {
+      "environment": "prod",
+      "service": "order-enrichment",
+      "time_window": "last_30m"
+    }
+  },
+  "metadata": {
+    "requested_by": "platform-ops",
+    "ticket": "INC-1042"
+  }
+}
+

@@ -1,0 +1,70 @@
+config:
+  appEnv: prod
+  debug: "false"
+  serviceName: workflow-api
+
+api:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+workers:
+  - name: projection
+    enabled: true
+    replicaCount: 2
+    role: projection
+    consumerGroup: projection-consumers
+    primaryTopic: registry.events
+    resources:
+      requests:
+        cpu: 300m
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+  - name: analytics
+    enabled: true
+    replicaCount: 2
+    role: analytics
+    consumerGroup: anomaly-consumers
+    primaryTopic: system.metrics
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+  - name: alerts
+    enabled: true
+    replicaCount: 2
+    role: alerts
+    consumerGroup: alert-consumers
+    primaryTopic: anomaly.events
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 65
+
+keda:
+  enabled: true
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  lagThreshold: "100"
+
+serviceMonitor:
+  enabled: true
