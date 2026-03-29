@@ -380,6 +380,8 @@ uv run python scripts/kafka_debug.py all
 - `uv run python scripts/kafka_debug.py describe-topic agent.executions` помогает проверить partitions и offsets конкретного topic
 - `uv run python scripts/kafka_debug.py peek-topic agent.executions --max-messages 1 --from-beginning` показывает реальный event envelope
 - `uv run python scripts/kafka_debug.py peek-dlq agent.steps.dlq --max-messages 1 --from-beginning` помогает быстро посмотреть ошибочное сообщение из DLQ
+- `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --event-type execution.finished` позволяет искать только нужный тип события
+- `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --payload-field execution_run.id=<execution_id>` позволяет найти конкретный запуск по payload
 
 ### Проверка проекций
 

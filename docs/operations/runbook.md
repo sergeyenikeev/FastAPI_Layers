@@ -33,6 +33,13 @@
 4. Сопоставьте рост DLQ с логами соответствующего worker-процесса
 5. Проверьте, не изменился ли event payload без синхронного обновления projection или consumer handler
 
+## Нужно найти конкретное событие выполнения
+
+1. Если известен `correlation_id`, выполните `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --correlation-id <correlation_id>`
+2. Если известен `execution_run_id`, выполните `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --payload-field execution_run.id=<execution_id>`
+3. Для финального события используйте `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --event-type execution.finished`
+4. Для шагов используйте аналогичный поиск в `agent.steps` по `--payload-field execution_step.execution_run_id=<execution_id>`
+
 ## Шторм алертов по дрейфу
 
 1. Проверьте `drift_reports` и последние метрики токенов модели

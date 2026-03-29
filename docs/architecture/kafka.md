@@ -41,6 +41,8 @@ uv run python scripts/kafka_debug.py all
 - `uv run python scripts/kafka_debug.py describe-group projection-consumers`
 - `uv run python scripts/kafka_debug.py peek-topic agent.executions --max-messages 1 --from-beginning`
 - `uv run python scripts/kafka_debug.py peek-dlq agent.executions.dlq --max-messages 1 --from-beginning`
+- `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --event-type execution.started`
+- `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --correlation-id <correlation_id>`
 
 ## Обработка сбоев
 

@@ -85,6 +85,8 @@ uv run python scripts/kafka_debug.py all
 - `uv run python scripts/kafka_debug.py describe-topic agent.executions`
 - `uv run python scripts/kafka_debug.py peek-topic agent.executions --max-messages 1 --from-beginning`
 - `uv run python scripts/kafka_debug.py peek-dlq agent.executions.dlq --max-messages 1 --from-beginning`
+- `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --event-type execution.finished`
+- `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --payload-field execution_run.id=<execution_id>`
 
 ## Запуск тестов
 
