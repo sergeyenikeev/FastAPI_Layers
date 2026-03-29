@@ -364,6 +364,21 @@ uv run pre-commit install
 - Проверяйте lag потребителей через метрики и Prometheus.
 - При проблемах с обработкой смотрите DLQ topics.
 
+Для локальной отладки Kafka используйте готовый скрипт:
+
+```bash
+uv run python scripts/kafka_debug.py all
+```
+
+Практические команды:
+
+- `uv run python scripts/kafka_debug.py topics` показывает все topics
+- `uv run python scripts/kafka_debug.py groups` показывает все consumer groups
+- `uv run python scripts/kafka_debug.py lag` показывает lag по всем groups
+- `uv run python scripts/kafka_debug.py dlq` показывает только DLQ-topics
+- `uv run python scripts/kafka_debug.py describe-group projection-consumers` помогает искать застрявшую read-side обработку
+- `uv run python scripts/kafka_debug.py describe-topic agent.executions` помогает проверить partitions и offsets конкретного topic
+
 ### Проверка проекций
 
 - Если write endpoint вернул `accepted`, но read API не отражает изменения, первым делом проверьте projection worker.

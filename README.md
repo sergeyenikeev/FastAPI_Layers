@@ -67,6 +67,23 @@ uv run python scripts/dev_stack.py start
 - остановка стека: `uv run python scripts/dev_stack.py stop`
 - остановка с удалением volumes: `uv run python scripts/dev_stack.py stop --volumes`
 
+### Локальная диагностика Kafka
+
+Для локальной диагностики Kafka есть отдельный toolkit:
+
+```bash
+uv run python scripts/kafka_debug.py all
+```
+
+Полезные команды:
+
+- `uv run python scripts/kafka_debug.py topics`
+- `uv run python scripts/kafka_debug.py groups`
+- `uv run python scripts/kafka_debug.py lag`
+- `uv run python scripts/kafka_debug.py dlq`
+- `uv run python scripts/kafka_debug.py describe-group projection-consumers`
+- `uv run python scripts/kafka_debug.py describe-topic agent.executions`
+
 ## Запуск тестов
 
 - Полный набор тестов: `uv run pytest`

@@ -86,6 +86,7 @@
 - `app/messaging/kafka.py`
 - `app/workers.py`
 - `scripts/create_topics.py`
+- `scripts/kafka_debug.py`
 - `helm/workflow-platform/values*.yaml`
 - `helm/workflow-platform/templates/keda-scaledobject.yaml`
 - `tests/integration/test_kafka_flow.py`
@@ -99,6 +100,7 @@
 - retry policy;
 - offset commit после успешной обработки;
 - маршрутизацию в DLQ после исчерпания ретраев.
+- локальную диагностику через `uv run python scripts/kafka_debug.py all`
 
 ## Если меняется аутентификация или RBAC
 

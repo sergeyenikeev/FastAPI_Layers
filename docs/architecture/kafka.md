@@ -16,6 +16,30 @@
 - `drift-consumers`
 - `alert-consumers`
 
+## Локальная диагностика Kafka
+
+Для локальной разработки и разбора инцидентов используйте готовый отладочный скрипт:
+
+```bash
+uv run python scripts/kafka_debug.py all
+```
+
+Он работает через `docker compose exec` внутри Kafka-контейнера и позволяет:
+
+- вывести список топиков;
+- вывести список consumer groups;
+- посмотреть lag всех consumer groups;
+- быстро найти DLQ-топики;
+- описать конкретный topic или group.
+
+Базовые команды:
+
+- `uv run python scripts/kafka_debug.py topics`
+- `uv run python scripts/kafka_debug.py groups`
+- `uv run python scripts/kafka_debug.py lag`
+- `uv run python scripts/kafka_debug.py dlq`
+- `uv run python scripts/kafka_debug.py describe-group projection-consumers`
+
 ## Обработка сбоев
 
 - Идемпотентность на стороне потребителя обеспечивается таблицей `processed_events`

@@ -22,6 +22,15 @@
 1. Проверьте количество реплик воркеров, масштабируемых через KEDA
 2. Проверьте offsets consumer groups и рост DLQ
 3. Масштабируйте аналитические или projection-воркеры, если отставание локализовано
+4. Для локальной диагностики используйте `uv run python scripts/kafka_debug.py lag`
+5. Для точечной проверки используйте `uv run python scripts/kafka_debug.py describe-group projection-consumers`
+
+## Сообщения ушли в DLQ
+
+1. Выполните `uv run python scripts/kafka_debug.py dlq`
+2. Если нужен контекст по конкретному topic, выполните `uv run python scripts/kafka_debug.py describe-topic agent.executions.dlq`
+3. Сопоставьте рост DLQ с логами соответствующего worker-процесса
+4. Проверьте, не изменился ли event payload без синхронного обновления projection или consumer handler
 
 ## Шторм алертов по дрейфу
 
