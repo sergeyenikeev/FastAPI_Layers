@@ -9,6 +9,8 @@ T = TypeVar("T")
 
 
 class APIModel(BaseModel):
+    # Базовый класс DTO включает from_attributes, чтобы query services могли
+    # безопасно строить схемы ответа прямо из ORM entities.
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -19,6 +21,7 @@ class ListParams(BaseModel):
 
 
 class Page[T](APIModel):
+    # Унифицированная пагинированная обертка для list endpoints по всему API.
     items: list[T] = Field(description="Элементы текущей страницы.")
     total: int = Field(description="Общее число элементов по запросу.")
     page: int = Field(description="Номер текущей страницы.")
@@ -26,6 +29,8 @@ class Page[T](APIModel):
 
 
 class CommandAccepted(APIModel):
+    # Стандартный ответ write-side ручек: команда принята, событие опубликовано,
+    # дальнейшая materialization произойдет асинхронно.
     entity_id: str = Field(description="Идентификатор сущности, для которой принята команда.")
     event_id: str = Field(description="Идентификатор опубликованного доменного события.")
     event_type: str = Field(description="Тип опубликованного события.")
@@ -36,6 +41,7 @@ class CommandAccepted(APIModel):
 
 
 class AgentDTO(APIModel):
+    # Registry DTO: краткая read-model карточка агента.
     id: str
     name: str
     description: str | None = None
@@ -128,6 +134,8 @@ class EnvironmentDTO(APIModel):
 
 
 class ExecutionStepDTO(APIModel):
+    # Step DTO показывает не только бизнес-выход узла, но и операционные поля:
+    # duration, token usage, trace id и timestamps.
     id: str = Field(description="Идентификатор шага выполнения.")
     execution_run_id: str = Field(description="Идентификатор родительского execution run.")
     agent_name: str = Field(description="Имя агента, выполнившего шаг.")
@@ -149,6 +157,8 @@ class ExecutionStepDTO(APIModel):
 
 
 class ExecutionRunDTO(APIModel):
+    # Execution DTO — один из самых важных read API контрактов: run + steps +
+    # terminal status + correlation/trace identifiers.
     id: str = Field(description="Идентификатор запуска выполнения.")
     deployment_id: str | None = None
     graph_definition_id: str | None = None

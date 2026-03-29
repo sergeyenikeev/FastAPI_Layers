@@ -13,6 +13,9 @@ logger = get_logger(__name__)
 
 
 class ModelGateway:
+    # Gateway отделяет orchestration от конкретного способа вызова модели.
+    # Благодаря этому workflow работает и с реальным внешним endpoint, и с
+    # fallback-режимом локальной имитации, не меняя своего публичного контракта.
     def __init__(self) -> None:
         self.settings = get_settings()
 
@@ -25,10 +28,15 @@ class ModelGateway:
         model_name: str | None,
         pricing: dict[str, Any] | None = None,
     ) -> ModelInvocationResult:
+        # Все вызовы модели проходят через один gateway, чтобы расчет latency,
+        # token usage и cost был единообразным для planner/reviewer и любых
+        # будущих узлов графа.
         pricing = pricing or {}
         started = time.perf_counter()
         if endpoint_url:
             try:
+                # Контракт intentionally минимальный: orchestration отправляет prompt
+                # и model name, а остальная логика транспортного вызова скрыта здесь.
                 async with httpx.AsyncClient(timeout=self.settings.model_timeout_seconds) as client:
                     response = await client.post(
                         endpoint_url.rstrip("/") + "/invoke",
@@ -38,11 +46,15 @@ class ModelGateway:
                     data = response.json()
                     content = str(data.get("content", ""))
             except Exception as exc:
+                # Fallback делает workflow устойчивым для локальной разработки,
+                # smoke-проверок и частичной деградации model endpoint-а.
                 logger.warning("model.invoke.fallback", endpoint_url=endpoint_url, error=str(exc))
                 content = self._fallback_response(prompt, model_name)
         else:
             content = self._fallback_response(prompt, model_name)
 
+        # Даже fallback-ответ оформляется как полноценный ModelInvocationResult,
+        # чтобы downstream telemetry, cost monitoring и step events имели единый формат.
         latency_ms = (time.perf_counter() - started) * 1000
         token_input = max(1, len(prompt.split()) * 2)
         token_output = max(1, len(content.split()) * 2)
@@ -60,5 +72,7 @@ class ModelGateway:
         )
 
     def _fallback_response(self, prompt: str, model_name: str | None) -> str:
+        # Fallback deliberately детерминирован и короток: он нужен не как "умная"
+        # модель, а как безопасный заменитель для мест, где важен сам workflow flow.
         short_prompt = prompt[:240]
         return f"[{model_name or 'mock-model'}] synthesized response for: {short_prompt}"

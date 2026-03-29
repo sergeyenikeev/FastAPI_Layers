@@ -20,6 +20,8 @@ _sqlalchemy_instrumented = False
 
 
 def setup_telemetry(app: FastAPI, engine: AsyncEngine, settings: Settings) -> None:
+    # Telemetry поднимается централизованно, чтобы FastAPI и SQLAlchemy были
+    # проинструментированы одним tracer provider и одним service identity.
     global _sqlalchemy_instrumented
     resource = Resource.create(
         {
@@ -29,9 +31,13 @@ def setup_telemetry(app: FastAPI, engine: AsyncEngine, settings: Settings) -> No
     )
     provider = TracerProvider(resource=resource)
     if settings.otel_exporter_otlp_endpoint:
+        # OTLP exporter подключается только если endpoint явно задан. Это важно
+        # для локальной разработки и тестов, где tracing может быть отключен.
         exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
         provider.add_span_processor(BatchSpanProcessor(exporter))
     with suppress(Exception):
+        # Tracer provider может уже быть установлен внешней средой или тестом.
+        # Мы не валим процесс, если повторная регистрация невозможна.
         trace.set_tracer_provider(provider)
 
     app_id = id(app)
@@ -45,6 +51,8 @@ def setup_telemetry(app: FastAPI, engine: AsyncEngine, settings: Settings) -> No
 
 @asynccontextmanager
 async def span(name: str) -> AsyncIterator[None]:
+    # Вспомогательный context manager нужен для ручной трассировки Kafka publish/
+    # consume и других async-операций, которые не покрываются автоинструментацией.
     tracer = trace.get_tracer("workflow-platform")
     with tracer.start_as_current_span(name):
         yield

@@ -8,6 +8,9 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+# Этот скрипт — thin operational wrapper вокруг Kafka CLI внутри docker compose.
+# Его задача сделать локальную диагностику topics, lag и payload-ов доступной
+# без ручного `docker compose exec ...` и длинных CLI-команд.
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BOOTSTRAP_SERVER = "localhost:9092"
 DEFAULT_KAFKA_SERVICE = "kafka"
@@ -105,6 +108,8 @@ def add_peek_filters(parser: argparse.ArgumentParser) -> None:
 
 
 def run_kafka_cli(service: str, shell_command: str) -> str:
+    # Все диагностические команды выполняются внутри Kafka container-а, чтобы
+    # использовать штатные CLI-утилиты, уже присутствующие в image.
     command = [
         "docker",
         "compose",
@@ -203,6 +208,8 @@ def consume_messages(
     max_messages: int,
     from_beginning: bool,
 ) -> str:
+    # Для peek мы читаем сообщений с запасом, потому что затем часть из них
+    # может быть отброшена локальными фильтрами по event_type/correlation_id/payload.
     from_beginning_flag = "--from-beginning" if from_beginning else ""
     raw_fetch_limit = max_messages * 20
     command = (
@@ -246,6 +253,8 @@ def get_nested_value(payload: object, path: str) -> object | None:
 
 
 def matches_filters(message: dict[str, object], args: argparse.Namespace) -> bool:
+    # Фильтрация выполняется уже после чтения из Kafka, что проще для локальной
+    # диагностики и не требует отдельного streaming consumer implementation.
     value = message.get("value")
     if not isinstance(value, dict):
         return False
@@ -277,6 +286,8 @@ def cast_sequence_str(value: object) -> Sequence[str]:
 
 
 def pretty_print_messages(raw_output: str, args: argparse.Namespace) -> str:
+    # Pretty-print превращает сырые console-consumer строки в операторский
+    # вывод с форматированным JSON envelope, пригодный для ручного разбора.
     lines = [line for line in raw_output.splitlines() if line.strip()]
     if not lines:
         return "(сообщения не найдены)"

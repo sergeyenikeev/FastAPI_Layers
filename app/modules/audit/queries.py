@@ -9,6 +9,7 @@ from app.domain.schemas import AuditEventDTO, Page
 
 
 class AuditQueryService:
+    # Audit query service отдает paginated view исторического журнала действий.
     async def list_audit_events(
         self,
         session: AsyncSession,

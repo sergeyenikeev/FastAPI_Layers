@@ -9,6 +9,8 @@ from app.modules.orchestration.schemas import ModelInvocationResult
 
 
 class FakeGateway:
+    # FakeGateway делает workflow unit-тест полностью детерминированным: тест
+    # проверяет маршрутизацию и state propagation, а не поведение внешней модели.
     async def invoke(
         self,
         *,
@@ -32,6 +34,7 @@ class FakeGateway:
 
 @pytest.mark.asyncio
 async def test_execution_workflow_runs_full_langgraph_chain() -> None:
+    # Тест защищает базовый happy path LangGraph workflow без validator branch.
     emitted_steps: list[dict[str, Any]] = []
 
     async def emit_step(
@@ -88,6 +91,7 @@ async def test_execution_workflow_runs_full_langgraph_chain() -> None:
 
 @pytest.mark.asyncio
 async def test_execution_workflow_routes_through_validator_when_flag_enabled() -> None:
+    # Этот сценарий фиксирует условную ветку tool_runner -> validator -> reviewer.
     emitted_steps: list[dict[str, Any]] = []
 
     async def emit_step(

@@ -14,6 +14,7 @@ from app.workers import AlertHandler
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_alert_handler_creates_alert_event_and_projection(runtime: AppRuntime) -> None:
+    # Сквозной тест на alerting flow: anomaly signal -> alert event -> projection -> read query.
     publisher = cast(InMemoryPublisher, runtime.publisher)
     event = EventEnvelope(
         event_type="anomaly.detected",

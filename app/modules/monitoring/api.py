@@ -16,16 +16,22 @@ from app.modules.monitoring.health import HealthService
 from app.modules.monitoring.queries import MonitoringQueryService
 from app.modules.monitoring.schemas import HealthSummary, PerformanceSummary
 
+# Monitoring router отдает только read-side и health-функции платформы.
+# Здесь нет прямой логики детекторов или Prometheus runtime-метрик процесса —
+# только transport-adapter для monitoring query и health services.
 router = APIRouter(prefix="", tags=["monitoring"])
 
 
 def get_health_service() -> HealthService:
+    # HealthService отдается из runtime как process-wide singleton, потому что
+    # он завязан на engine, publisher и общие settings процесса.
     from app.runtime import get_runtime
 
     return get_runtime().health_service
 
 
 def get_monitoring_queries() -> MonitoringQueryService:
+    # Query service читает materialized monitoring данные из PostgreSQL.
     from app.runtime import get_runtime
 
     return get_runtime().monitoring_queries

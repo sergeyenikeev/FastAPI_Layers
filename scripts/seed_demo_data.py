@@ -31,6 +31,9 @@ from app.db.models import (
     ModelVersion,
 )
 
+# Скрипт идемпотентно наполняет локальный registry/read-side demo-сущностями.
+# Он использует публичный API для write-side команд и БД только там, где нужно
+# дождаться materialized version/entity id для последующих связей deployment-а.
 ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
 DEFAULT_BASE_URL = "http://localhost:8080"
@@ -39,6 +42,8 @@ DEFAULT_TIMEOUT_SECONDS = 90
 
 @dataclass(frozen=True)
 class GraphSeed:
+    # Небольшие typed dataclass-ы делают seed-набор явно структурированным и
+    # читаемым, вместо разрозненных невалидируемых dict-констант.
     name: str
     description: str
     entrypoint: str
@@ -244,6 +249,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def parse_env_map(env_file: Path) -> dict[str, str]:
+    # Скрипт сознательно читает .env сам, потому что запускается как внешняя
+    # operational утилита и не должен зависеть от FastAPI settings bootstrap.
     values: dict[str, str] = {}
     for line in env_file.read_text(encoding="utf-8").splitlines():
         if not line or line.lstrip().startswith("#") or "=" not in line:
@@ -264,6 +271,8 @@ def get_first_env_value(raw_value: str) -> str:
 
 
 def normalize_db_url(raw_url: str) -> str:
+    # При запуске с хоста compose-имя `postgres` недоступно, поэтому URL
+    # локально перенаправляется на localhost для прямого доступа к БД.
     parsed = urlparse(raw_url)
     if parsed.hostname not in {"postgres", "db"}:
         return raw_url
@@ -311,6 +320,8 @@ async def wait_for_row(
     query_builder: callable,
     timeout_sec: int,
 ) -> Any:
+    # Seed публикует write-side команды асинхронно, поэтому между созданием
+    # сущности и ее доступностью в read-side есть небольшое окно materialization lag.
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         async with session_factory() as session:
@@ -375,6 +386,7 @@ async def seed_graphs(
     session_factory: async_sessionmaker[AsyncSession],
     timeout_sec: int,
 ) -> list[str]:
+    # Сначала создаются graph-ы, потому что на них опираются agent versions.
     actions: list[str] = []
     for graph in DEMO_GRAPHS:
         async with session_factory() as session:
@@ -411,6 +423,7 @@ async def seed_models(
     session_factory: async_sessionmaker[AsyncSession],
     timeout_sec: int,
 ) -> list[str]:
+    # Модели создаются до deployment-ов, чтобы потом можно было найти их версии.
     actions: list[str] = []
     for model in DEMO_MODELS:
         async with session_factory() as session:
@@ -487,6 +500,8 @@ async def seed_agents(
     session_factory: async_sessionmaker[AsyncSession],
     timeout_sec: int,
 ) -> list[str]:
+    # Агент seed deliberately дожидается materialization agent version, потому что
+    # deployment contract ссылается именно на version id, а не только на agent id.
     actions: list[str] = []
     for agent in DEMO_AGENTS:
         async with session_factory() as session:
@@ -530,6 +545,8 @@ async def seed_deployments(
     session_factory: async_sessionmaker[AsyncSession],
     timeout_sec: int,
 ) -> list[str]:
+    # Deployment-ы создаются последними, когда уже есть agent/model version ids
+    # и environment ids, на которые можно безопасно сослаться.
     actions: list[str] = []
     for deployment in DEMO_DEPLOYMENTS:
         async with session_factory() as session:

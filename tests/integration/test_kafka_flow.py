@@ -21,6 +21,8 @@ from app.runtime import AppRuntime
 
 @dataclass
 class FakeRecord:
+    # Минимальный record double позволяет тестировать consumer code path без
+    # реального Kafka broker и без полной aiokafka runtime среды.
     topic: str
     partition: int
     offset: int
@@ -29,6 +31,7 @@ class FakeRecord:
 
 @pytest.mark.kafka
 def test_event_roundtrip_serialization() -> None:
+    # Wire contract событий должен быть симметричен: serialize -> deserialize без потерь.
     event = EventEnvelope(
         event_type="agent.created",
         correlation_id="corr-1",
@@ -43,6 +46,8 @@ def test_event_roundtrip_serialization() -> None:
 @pytest.mark.kafka
 @pytest.mark.asyncio
 async def test_consumer_idempotency(runtime: AppRuntime) -> None:
+    # Ключевой защитный тест на то, что duplicate event не переобрабатывается
+    # одним и тем же consumer group более одного раза.
     handled: list[str] = []
 
     async def handler(event: EventEnvelope, _record: Any, _session: AsyncSession) -> None:
@@ -82,6 +87,8 @@ async def test_consumer_idempotency(runtime: AppRuntime) -> None:
 @pytest.mark.kafka
 @pytest.mark.asyncio
 async def test_consumer_sends_event_to_dlq_after_retries(runtime: AppRuntime) -> None:
+    # Если handler стабильно падает, consumer обязан вывести событие в DLQ и не
+    # блокировать partition бесконечными повторными попытками.
     publisher = cast(InMemoryPublisher, runtime.publisher)
 
     async def failing_handler(
@@ -124,6 +131,7 @@ async def test_consumer_sends_event_to_dlq_after_retries(runtime: AppRuntime) ->
 async def test_langgraph_execution_publishes_expected_kafka_event_sequence(
     runtime: AppRuntime,
 ) -> None:
+    # Тест фиксирует ожидаемую Kafka-последовательность для базовой ветки workflow.
     publisher = cast(InMemoryPublisher, runtime.publisher)
 
     async with runtime.session_factory() as session:
@@ -174,6 +182,8 @@ async def test_langgraph_execution_publishes_expected_kafka_event_sequence(
 async def test_langgraph_execution_publishes_validator_branch_events(
     runtime: AppRuntime,
 ) -> None:
+    # Отдельно защищается validator-ветка, потому что ее event sequence длиннее
+    # и часто ломается первой при изменениях в графе или step emitter-е.
     publisher = cast(InMemoryPublisher, runtime.publisher)
 
     async with runtime.session_factory() as session:

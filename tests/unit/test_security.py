@@ -11,6 +11,7 @@ from app.core.security import Role, get_auth_context, require_role
 
 @pytest.mark.asyncio
 async def test_api_key_auth_accepts_known_key(monkeypatch: MonkeyPatch) -> None:
+    # API key должен давать локальному операторскому сценарию валидный auth context.
     monkeypatch.setattr(
         "app.core.security.get_settings",
         lambda: get_settings().model_copy(update={"api_keys": ["known-key"]}),
@@ -21,6 +22,7 @@ async def test_api_key_auth_accepts_known_key(monkeypatch: MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_jwt_auth_decodes_role(monkeypatch: MonkeyPatch) -> None:
+    # JWT-путь отдельно проверяет, что роль и subject действительно достаются из token claims.
     settings = get_settings().model_copy(
         update={
             "jwt_secret": "test-secret-key-with-32-bytes-minimum",
@@ -40,6 +42,7 @@ async def test_jwt_auth_decodes_role(monkeypatch: MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_require_role_rejects_lower_privilege() -> None:
+    # Guard against regression: dependency обязана закрывать доступ роли ниже требуемой.
     dependency = require_role(Role.ADMIN)
     with pytest.raises(HTTPException):
         await dependency(type("Ctx", (), {"role": Role.VIEWER})())

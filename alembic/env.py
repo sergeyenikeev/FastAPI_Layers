@@ -11,6 +11,8 @@ from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
 
+# Alembic env связывает migration runtime с конфигурацией приложения и metadata ORM.
+# Так миграции используют тот же DATABASE_URL и ту же схему моделей, что и само приложение.
 config = context.config
 settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -22,6 +24,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    # Offline mode нужен для генерации SQL без реального подключения к БД.
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -35,10 +38,14 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # Online mode для async SQLAlchemy оборачивается в asyncio.run, потому что
+    # Alembic сам по себе остается sync-oriented entrypoint-ом.
     asyncio.run(_run_migrations_online())
 
 
 async def _run_migrations_online() -> None:
+    # Отдельная async-функция держит реальное async engine lifecycle и потом
+    # передает синхронной Alembic-логике уже открытое соединение.
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -52,6 +59,8 @@ async def _run_migrations_online() -> None:
 
 
 def _do_run_migrations(connection: object) -> None:
+    # Конкретная миграция выполняется в sync callback, который Alembic ожидает
+    # даже если upstream connection был создан асинхронным способом.
     context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
     with context.begin_transaction():
         context.run_migrations()

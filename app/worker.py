@@ -14,6 +14,8 @@ logger = get_logger(__name__)
 
 
 async def heartbeat_loop(role: str) -> None:
+    # Heartbeat публикуется отдельной корутиной, чтобы платформа видела не
+    # только бизнес-события, но и сам факт жизни worker-процесса по ролям.
     runtime = get_runtime()
     while True:
         await runtime.publisher.publish(
@@ -38,6 +40,9 @@ async def heartbeat_loop(role: str) -> None:
 
 
 async def run() -> None:
+    # Это главный entrypoint worker-процесса. В отличие от API runtime, здесь
+    # поднимаются consumer workers по выбранной роли и затем процесс живет в
+    # бесконечном event loop до graceful shutdown.
     runtime = get_runtime()
     await runtime.startup()
     workers_by_role = build_workers(
@@ -56,6 +61,8 @@ async def run() -> None:
         else [runtime.settings.worker_role]
     )
 
+    # Каждый BaseConsumerWorker работает как отдельная asyncio task. Это дает
+    # независимые consumer loops для projection/analytics/alerts ролей.
     consumer_tasks: list[asyncio.Task[None]] = []
     for role in selected_roles:
         for worker in workers_by_role.get(role, []):
@@ -66,11 +73,15 @@ async def run() -> None:
     try:
         await asyncio.gather(*consumer_tasks)
     finally:
+        # На остановке сначала гасим consumers, затем закрываем shared runtime,
+        # чтобы publisher и другие ресурсы не были закрыты слишком рано.
         await shutdown_consumer_tasks(consumer_tasks)
         await runtime.shutdown()
 
 
 def main() -> None:
+    # Отдельная sync-обертка нужна, чтобы модуль можно было запускать как
+    # `python -m app.worker` и использовать стандартный asyncio.run entrypoint.
     asyncio.run(run())
 
 

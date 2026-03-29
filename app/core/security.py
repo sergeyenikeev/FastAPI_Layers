@@ -17,12 +17,16 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 class Role(StrEnum):
+    # Роли упорядочены по возрастанию полномочий. Этот набор deliberately мал,
+    # чтобы RBAC оставался понятным и не расползался по десяткам специальных прав.
     ADMIN = "admin"
     OPERATOR = "operator"
     VIEWER = "viewer"
 
 
 class AuthContext(BaseModel):
+    # AuthContext — нормализованный результат аутентификации, с которым дальше
+    # работает весь API-слой независимо от того, пришел пользователь по API key или JWT.
     subject: str
     role: Role
     auth_type: str
@@ -37,6 +41,8 @@ ROLE_ORDER: dict[Role, int] = {
 
 
 def _decode_jwt(token: str) -> AuthContext:
+    # JWT декодируется в отдельной функции, чтобы get_auth_context оставался
+    # orchestration-функцией выбора механизма auth, а не смешивал все детали сразу.
     settings = get_settings()
     payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     role = Role(payload.get("role", Role.VIEWER))
@@ -52,11 +58,15 @@ async def get_auth_context(
     api_key: Annotated[str | None, Security(api_key_header)],
     credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
 ) -> AuthContext:
+    # Порядок проверок фиксирован: сначала API key, затем bearer token.
+    # Это важно для Swagger/local-dev сценариев, где API key — основной путь входа.
     settings = get_settings()
     if api_key:
         if api_key not in settings.api_keys:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
         context = AuthContext(subject="api-key-user", role=Role.ADMIN, auth_type="api_key")
+        # principal_id сразу пишется в context layer, чтобы audit/logging могли
+        # использовать его дальше без повторного разбора auth заголовков.
         set_principal_id(context.subject)
         return context
 
@@ -75,6 +85,8 @@ async def get_auth_context(
 
 
 def require_role(required_role: Role) -> Callable[[AuthContext], Awaitable[AuthContext]]:
+    # require_role строит dependency-функцию для FastAPI. Это keeps transport
+    # integration thin и дает единый способ описывать RBAC на endpoint-уровне.
     async def _dependency(
         context: Annotated[AuthContext, Depends(get_auth_context)],
     ) -> AuthContext:

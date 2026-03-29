@@ -8,12 +8,16 @@ from pydantic import BaseModel
 
 
 class ErrorResponse(BaseModel):
+    # ErrorResponse фиксирует единый JSON-контракт ошибок для доменных и
+    # прикладных исключений, чтобы API не возвращал разнородные форматы.
     detail: str
     code: str
     extra: dict[str, Any] | None = None
 
 
 class DomainError(Exception):
+    # DomainError используется для ожидаемых прикладных ошибок, которые нужно
+    # вернуть клиенту как управляемый 4xx-ответ, а не как internal server error.
     def __init__(
         self, detail: str, code: str = "domain_error", extra: dict[str, Any] | None = None
     ):
@@ -24,6 +28,8 @@ class DomainError(Exception):
 
 
 def install_error_handlers(app: FastAPI) -> None:
+    # Обработчики ошибок централизованы, чтобы bounded context-ы не определяли
+    # собственные ad-hoc response shapes для одинаковых классов ошибок.
     @app.exception_handler(DomainError)
     async def _domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
         return JSONResponse(

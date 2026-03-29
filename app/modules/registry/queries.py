@@ -25,6 +25,8 @@ from app.domain.schemas import (
 
 
 class RegistryQueryService:
+    # Query service читает уже materialized registry read models. Он намеренно
+    # не знает ничего о Kafka и не участвует в публикации доменных событий.
     async def list_agents(
         self,
         session: AsyncSession,
@@ -33,6 +35,8 @@ class RegistryQueryService:
         page_size: int,
         q: str | None = None,
     ) -> Page[AgentDTO]:
+        # Поиск по агентам ограничен теми полями, которые нужны оператору чаще
+        # всего: имя и владелец. Остальные детали читаются через get_agent.
         query = select(Agent).order_by(Agent.created_at.desc())
         if q:
             query = query.where(or_(Agent.name.ilike(f"%{q}%"), Agent.owner.ilike(f"%{q}%")))
@@ -117,6 +121,8 @@ class RegistryQueryService:
         page_size: int,
         q: str | None = None,
     ) -> Page[DeploymentDTO]:
+        # Для deployment-ов query поддерживает легкий текстовый поиск по статусу
+        # и связанному environment, чтобы UI/Swagger могли быстро фильтровать список.
         query = select(Deployment).order_by(Deployment.created_at.desc())
         if q:
             environment_ids = select(Environment.id).where(Environment.name.ilike(f"%{q}%"))

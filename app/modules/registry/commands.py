@@ -25,11 +25,16 @@ from app.modules.registry.schemas import (
 
 
 class RegistryCommandService:
+    # RegistryCommandService — write-side фасад реестра. Он не пишет в read-side
+    # таблицы напрямую, а публикует domain events и тем самым сохраняет единый
+    # event-driven поток для materialization, audit и downstream consumers.
     def __init__(self, publisher: PublisherProtocol, audit_service: AuditService):
         self.publisher = publisher
         self.audit_service = audit_service
 
     async def create_agent(self, payload: CreateAgentRequest) -> CommandAccepted:
+        # Создание агента сразу включает и первую версию агента, потому что для
+        # платформы агент без версии не является исполнимой конфигурацией.
         agent_id = str(uuid4())
         agent_version_id = str(uuid4())
         event = EventEnvelope(
@@ -121,6 +126,8 @@ class RegistryCommandService:
         )
 
     async def create_model(self, payload: CreateModelRequest) -> CommandAccepted:
+        # Модель тоже публикуется как пара endpoint + version, чтобы orchestration
+        # мог стабильно ссылаться на конкретную версию inference-конфига.
         endpoint_id = str(uuid4())
         version_id = str(uuid4())
         event = EventEnvelope(
@@ -218,6 +225,8 @@ class RegistryCommandService:
         )
 
     async def create_graph(self, payload: CreateGraphRequest) -> CommandAccepted:
+        # Graph definition materializes отдельно от agent, чтобы один сценарий
+        # выполнения мог переиспользоваться несколькими агентами и deployment-ами.
         graph_id = str(uuid4())
         event = EventEnvelope(
             event_type="graph.created",
@@ -303,6 +312,8 @@ class RegistryCommandService:
         )
 
     async def create_deployment(self, payload: CreateDeploymentRequest) -> CommandAccepted:
+        # Deployment связывает agent version, model version и environment в одну
+        # исполнимую конфигурацию. Именно по deployment чаще всего стартует execution.
         deployment_id = str(uuid4())
         environment_id = payload.environment_id or str(uuid4())
         event = EventEnvelope(
@@ -398,6 +409,9 @@ class RegistryCommandService:
         )
 
     async def create_tool(self, payload: CreateToolRequest) -> CommandAccepted:
+        # Tool definitions пока не участвуют напрямую в runtime wiring, но уже
+        # живут в registry и versionable event stream, чтобы workflow можно было
+        # постепенно переводить на декларативное описание инструментов.
         tool_id = str(uuid4())
         event = EventEnvelope(
             event_type="tool.created",
@@ -482,6 +496,8 @@ class RegistryCommandService:
         )
 
     async def create_environment(self, payload: CreateEnvironmentRequest) -> CommandAccepted:
+        # Environment создается как самостоятельная registry-сущность, потому что
+        # оно участвует и в deployment, и в cost attribution, и в monitoring срезах.
         environment_id = str(uuid4())
         event = EventEnvelope(
             event_type="environment.created",

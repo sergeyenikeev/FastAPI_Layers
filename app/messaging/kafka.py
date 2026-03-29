@@ -23,10 +23,14 @@ logger = get_logger(__name__)
 
 
 def serialize_event(event: EventEnvelope) -> bytes:
+    # Все события сериализуются из единого EventEnvelope, чтобы producer и
+    # consumer слой не расходились по wire format между модулями.
     return orjson.dumps(event.model_dump(mode="json"))
 
 
 def deserialize_event(value: bytes) -> EventEnvelope:
+    # Десериализация симметрична serialize_event и сразу валидирует payload
+    # через Pydantic-модель envelope, а не через разрозненные dict access.
     return EventEnvelope.model_validate(orjson.loads(value))
 
 
@@ -40,6 +44,8 @@ def default_partition_key(event: EventEnvelope) -> bytes:
 
 
 class EventPublisher:
+    # Producer оборачивает aiokafka и задает единые правила публикации событий:
+    # idempotent producer, JSON envelope, tracing headers и stable partition key.
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
         self._producer: AIOKafkaProducer | None = None
@@ -108,6 +114,8 @@ class EventPublisher:
 
 
 class EventHandler(Protocol):
+    # Handler protocol фиксирует контракт для worker-обработчиков: они получают
+    # уже десериализованный event, сырую Kafka record и открытую DB session.
     async def __call__(
         self,
         event: EventEnvelope,
@@ -117,6 +125,8 @@ class EventHandler(Protocol):
 
 
 class PublisherProtocol(Protocol):
+    # Протокол позволяет runtime и сервисам зависеть от абстракции publisher,
+    # а не от конкретного Kafka implementation. Это упрощает тесты и local fakes.
     async def start(self) -> None: ...
 
     async def stop(self) -> None: ...
@@ -131,6 +141,9 @@ class PublisherProtocol(Protocol):
 
 
 class BaseConsumerWorker:
+    # BaseConsumerWorker реализует общий шаблон Kafka consumer-а:
+    # polling, tracing, manual commit, idempotency, retries и DLQ.
+    # Конкретная бизнес-логика остается в injected handler.
     def __init__(
         self,
         *,
@@ -173,6 +186,8 @@ class BaseConsumerWorker:
         )
 
     async def stop(self) -> None:
+        # Shutdown signal хранится отдельно от stop() consumer-а, чтобы loop в
+        # run_forever мог корректно завершиться даже между polling итерациями.
         self._shutdown.set()
         if self._consumer is not None:
             await self._consumer.stop()
@@ -203,6 +218,8 @@ class BaseConsumerWorker:
             await self.stop()
 
     async def _process_record(self, record: ConsumerRecord) -> None:
+        # Весь record processing завязан на at-least-once delivery: сначала
+        # side effects + processed marker в транзакции, потом offset commit.
         event = deserialize_event(record.value)
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -306,6 +323,8 @@ class BaseConsumerWorker:
 
 
 class InMemoryPublisher:
+    # InMemoryPublisher нужен для тестов и локальных unit-scenarios, где важно
+    # сохранить тот же publisher contract, но не поднимать реальный Kafka broker.
     def __init__(self) -> None:
         self.events: list[tuple[str, EventEnvelope]] = []
 
@@ -327,6 +346,8 @@ class InMemoryPublisher:
 
 
 async def shutdown_consumer_tasks(tasks: Sequence[asyncio.Task[None]]) -> None:
+    # Функция выделена отдельно, чтобы worker runtime использовал единый и
+    # предсказуемый способ остановки consumer tasks при graceful shutdown.
     for task in tasks:
         task.cancel()
     for task in tasks:

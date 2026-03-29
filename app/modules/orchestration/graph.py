@@ -9,6 +9,10 @@ from langgraph.graph import END, START, StateGraph
 from app.modules.orchestration.gateway import ModelGateway
 
 
+# ExecutionState — это минимальный сериализуемый контракт между command-side
+# orchestration service и LangGraph workflow. Здесь хранятся только те поля,
+# которые действительно нужны шагам графа и которые безопасно переносить между
+# node handlers без привязки к ORM, HTTP или Kafka transport деталям.
 class ExecutionState(TypedDict, total=False):
     execution_run_id: str
     deployment_id: str | None
@@ -31,17 +35,25 @@ StepEmitter = Callable[
 
 
 class ExecutionWorkflow:
+    # Этот класс инкапсулирует сам LangGraph workflow и скрывает его от остального
+    # приложения за простым методом invoke(). Сервис orchestration знает только,
+    # что может передать state и получить обновленный state на выходе.
     def __init__(self, gateway: ModelGateway, step_emitter: StepEmitter) -> None:
         self.gateway = gateway
         self.step_emitter = step_emitter
         self._graph = self._build()
 
     def _build(self) -> Any:
+        # Граф собирается один раз при создании workflow. Это важно, чтобы не
+        # тратить время на повторное конструирование topology на каждый запуск.
         graph = StateGraph(ExecutionState)
         graph.add_node("planner", self._planner)
         graph.add_node("tool_runner", self._tool_runner)
         graph.add_node("validator", self._validator)
         graph.add_node("reviewer", self._reviewer)
+
+        # Базовый маршрут всегда начинается с planner и затем идет в tool_runner.
+        # После tool_runner возможна условная ветка в validator.
         graph.add_edge(START, "planner")
         graph.add_edge("planner", "tool_runner")
         graph.add_conditional_edges(
@@ -57,9 +69,13 @@ class ExecutionWorkflow:
         return graph.compile()
 
     async def invoke(self, state: ExecutionState) -> ExecutionState:
+        # Внешний контракт workflow deliberately простой: orchestration service не
+        # должен знать детали внутренней маршрутизации между node handlers.
         return await self._graph.ainvoke(state)
 
     async def _planner(self, state: ExecutionState) -> dict[str, Any]:
+        # Planner отвечает за первый интеллектуальный шаг: превратить objective
+        # и входной payload в компактный исполнимый план для следующих узлов.
         started = time.perf_counter()
         objective = state.get("objective") or state.get("input_payload", {}).get(
             "objective", "unknown"
@@ -92,6 +108,9 @@ class ExecutionWorkflow:
         return output
 
     async def _tool_runner(self, state: ExecutionState) -> dict[str, Any]:
+        # Tool runner в текущей реализации симулирует прикладной этап, который
+        # собирает результат внешних инструментов. Он отделен от planner/reviewer,
+        # потому что обычно именно здесь концентрируются side-effectful действия.
         started = time.perf_counter()
         plan = state.get("plan", "")
         input_payload = state.get("input_payload", {})
@@ -134,11 +153,15 @@ class ExecutionWorkflow:
         }
 
     def _route_after_tool_runner(self, state: ExecutionState) -> str:
+        # Маршрутизация вынесена в отдельную функцию, чтобы правила ветвления
+        # можно было тестировать и развивать независимо от node implementation.
         if state.get("validation_required"):
             return "validator"
         return "reviewer"
 
     async def _validator(self, state: ExecutionState) -> dict[str, Any]:
+        # Validator — опциональный узел для рискованных сценариев. Он не заменяет
+        # reviewer, а добавляет дополнительный guard rail перед финальной сборкой ответа.
         started = time.perf_counter()
         summary = (
             "Validation completed for prepared execution summary: "
@@ -170,6 +193,9 @@ class ExecutionWorkflow:
         return {"validation_summary": summary}
 
     async def _reviewer(self, state: ExecutionState) -> dict[str, Any]:
+        # Reviewer завершает workflow: сводит план, tool output и опциональный
+        # validation result в финальный ответ, который потом публикуется как
+        # execution.finished и попадает в read-side execution_run.output_payload.
         started = time.perf_counter()
         model_context = state.get("model_context", {})
         prompt = (

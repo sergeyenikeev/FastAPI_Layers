@@ -35,6 +35,9 @@ logger = get_logger(__name__)
 
 
 class ProjectionHandler:
+    # Projection handler — thin adapter вокруг ProjectionService. Он существует,
+    # чтобы BaseConsumerWorker мог работать с единым handler contract независимо
+    # от конкретной предметной логики.
     def __init__(self, projector: ProjectionService) -> None:
         self.projector = projector
 
@@ -45,6 +48,9 @@ class ProjectionHandler:
 
 
 class MetricsAggregationHandler:
+    # Этот handler производит вторичные системные метрики из execution events.
+    # Он отделен от orchestration service, чтобы analytics-пайплайн можно было
+    # масштабировать и развивать независимо от write-side запуска execution.
     def __init__(self, publisher: PublisherProtocol) -> None:
         self.publisher = publisher
 
@@ -59,6 +65,8 @@ class MetricsAggregationHandler:
             await self._publish_metric("execution_failed", event.entity_id, 1.0)
 
     async def _publish_metric(self, metric_name: str, entity_id: str, value: float) -> None:
+        # Агрегированные метрики снова публикуются как events, а не пишутся в БД
+        # напрямую, чтобы вся downstream-аналитика оставалась event-driven.
         await self.publisher.publish(
             SYSTEM_METRICS_TOPIC,
             EventEnvelope(
@@ -82,6 +90,8 @@ class MetricsAggregationHandler:
 
 
 class AnomalyHandler:
+    # Аномалии вычисляются на основе уже materialized истории метрик/стоимости.
+    # Handler не хранит состояние в памяти процесса, а берет baseline из БД.
     def __init__(
         self, publisher: PublisherProtocol, detection_service: AnomalyDetectionService
     ) -> None:
@@ -97,6 +107,8 @@ class AnomalyHandler:
             await self._handle_cost_event(event, session)
 
     async def _handle_metric_event(self, event: EventEnvelope, session: AsyncSession) -> None:
+        # Берем короткую скользящую историю по конкретной метрике и сущности,
+        # затем добавляем новое значение и прогоняем его через detector set.
         payload = event.payload
         history_query = (
             select(MetricSample.value)
@@ -141,6 +153,8 @@ class AnomalyHandler:
             )
 
     async def _handle_cost_event(self, event: EventEnvelope, session: AsyncSession) -> None:
+        # Для cost anomalies baseline строится по workflow/exec history, а не по
+        # глобальной стоимости, чтобы сигнал был локален конкретному сценарию.
         payload = event.payload
         workflow_id = payload.get("workflow_id") or payload.get("execution_run_id")
         history_query = (
@@ -181,6 +195,8 @@ class AnomalyHandler:
 
 
 class DriftHandler:
+    # Drift handler оценивает не события напрямую, а изменение распределений
+    # model-related метрик на коротком временном окне относительно baseline.
     def __init__(
         self, publisher: PublisherProtocol, detection_service: DriftDetectionService
     ) -> None:
@@ -221,6 +237,9 @@ class DriftHandler:
         metric_name: str,
         model_name: str,
     ) -> None:
+        # Сейчас drift считается на базе истории MetricSample. Это делает drift
+        # pipeline pluggable: источник inference events можно менять, а read-side
+        # metric history и evaluation contract останутся прежними.
         query = (
             select(MetricSample.value)
             .where(
@@ -267,6 +286,8 @@ class DriftHandler:
 
 
 class AlertHandler:
+    # Alert handler связывает detection pipelines с alerting service. Здесь нет
+    # своей логики dedupe/cooldown — она сознательно вынесена в отдельный сервис.
     def __init__(self, service: AlertingService) -> None:
         self.service = service
 
@@ -315,8 +336,13 @@ def build_workers(
     drift_detection_service: DriftDetectionService,
     alerting_service: AlertingService,
 ) -> dict[str, list[BaseConsumerWorker]]:
+    # build_workers задает фактическую topology worker runtime: какие consumer
+    # группы существуют, какие topics они читают и какие handler-ы запускают.
+    # Именно из этой функции вырастает operational разделение на projection,
+    # analytics и alerts роли.
     return {
         "projection": [
+            # Projection role materializes все ключевые read models платформы.
             BaseConsumerWorker(
                 name="projection-worker",
                 group_id="projection-consumers",
@@ -339,6 +365,7 @@ def build_workers(
             )
         ],
         "analytics": [
+            # Analytics role производит вторичные сигналы: counters, anomalies и drift.
             BaseConsumerWorker(
                 name="metrics-aggregation-worker",
                 group_id="metrics-aggregation-consumers",
@@ -370,6 +397,8 @@ def build_workers(
             ),
         ],
         "alerts": [
+            # Alerts role получает только сигналы высокого уровня и превращает их
+            # в deduplicated alert entities и внешние уведомления.
             BaseConsumerWorker(
                 name="alert-worker",
                 group_id="alert-consumers",

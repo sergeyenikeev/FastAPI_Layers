@@ -10,16 +10,24 @@ from app.modules.orchestration.queries import ExecutionQueryService
 from app.modules.orchestration.schemas import CreateExecutionRequest
 from app.modules.orchestration.service import ExecutionCommandService
 
+# Этот router представляет HTTP-вход в orchestration-контур.
+# Его задача намеренно узкая: принять команду запуска execution или вернуть
+# materialized read model. Никакой workflow-логики здесь нет — она живет в
+# service/graph слоях, чтобы API оставался тонким transport-adapter.
 router = APIRouter(prefix="", tags=["orchestration"])
 
 
 def get_execution_commands() -> ExecutionCommandService:
+    # Зависимость подтягивается из runtime, чтобы endpoint не создавал сервис
+    # сам и не знал, как именно wired publisher, gateway и background tasks.
     from app.runtime import get_runtime
 
     return get_runtime().execution_commands
 
 
 def get_execution_queries() -> ExecutionQueryService:
+    # Query service отдается отдельно от command service, потому что read-side
+    # и write-side в платформе осознанно разведены по CQRS-подходу.
     from app.runtime import get_runtime
 
     return get_runtime().execution_queries
@@ -41,6 +49,8 @@ async def create_execution(
     session: AsyncSession = Depends(get_session),
     service: ExecutionCommandService = Depends(get_execution_commands),
 ) -> CommandAccepted:
+    # HTTP-слой только валидирует вход и передает управление сервису.
+    # Сам execution продолжается асинхронно вне жизненного цикла запроса.
     return await service.create_execution(session, payload)
 
 
@@ -67,6 +77,9 @@ async def list_executions(
     session: AsyncSession = Depends(get_session),
     service: ExecutionQueryService = Depends(get_execution_queries),
 ) -> Page[ExecutionRunDTO]:
+    # Этот endpoint читает только проекции из PostgreSQL и никогда не ходит в
+    # Kafka или workflow runtime напрямую. Поэтому список может отставать от
+    # только что принятой команды на небольшое время materialization lag.
     return await service.list_executions(
         session,
         page=page,
@@ -92,4 +105,6 @@ async def get_execution(
     session: AsyncSession = Depends(get_session),
     service: ExecutionQueryService = Depends(get_execution_queries),
 ) -> ExecutionRunDTO:
+    # Детали execution возвращаются уже в форме read model: один запуск плюс
+    # его materialized steps. Это основной операторский способ разбирать run.
     return await service.get_execution(session, execution_id)

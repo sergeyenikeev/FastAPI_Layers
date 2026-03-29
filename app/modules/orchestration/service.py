@@ -36,6 +36,9 @@ logger = get_logger(__name__)
 
 
 class ExecutionCommandService:
+    # Этот сервис является command-side входом orchestration-контура.
+    # Он принимает валидированный запрос из API, поднимает execution.started,
+    # запускает LangGraph в фоне и публикует terminal events по завершении.
     def __init__(
         self,
         publisher: PublisherProtocol,
@@ -64,6 +67,8 @@ class ExecutionCommandService:
         model_context: dict[str, Any] = {}
         graph_definition_id = payload.graph_definition_id
         if payload.deployment_id:
+            # Deployment подмешивает runtime-контекст: какой graph брать, какой
+            # model endpoint использовать и как потом атрибутировать стоимость.
             deployment = await self._load_deployment(session, payload.deployment_id)
             if deployment is None:
                 raise DomainError(
@@ -92,6 +97,10 @@ class ExecutionCommandService:
                 }
 
         execution_run_id = str(uuid4())
+
+        # execution.started публикуется до реального выполнения workflow. Это дает
+        # системе ранний observable trace запуска и позволяет projections заранее
+        # создать execution_run даже если сам workflow займет заметное время.
         event = EventEnvelope(
             event_type="execution.started",
             correlation_id=get_correlation_id(),
@@ -145,6 +154,8 @@ class ExecutionCommandService:
     async def _load_deployment(
         self, session: AsyncSession, deployment_id: str
     ) -> Deployment | None:
+        # Здесь заранее подгружаются связанные сущности, потому что downstream
+        # orchestration сервису нужны graph/model details в одной транзакции.
         query = (
             select(Deployment)
             .options(
@@ -164,6 +175,8 @@ class ExecutionCommandService:
         input_payload: dict[str, Any],
         model_context: dict[str, Any],
     ) -> None:
+        # Workflow исполняется в фоне, уже вне HTTP request lifecycle.
+        # Здесь происходит реальная orchestration-работа и публикация terminal events.
         ACTIVE_EXECUTIONS.inc()
         workflow = ExecutionWorkflow(
             self.model_gateway, self._step_emitter(execution_run_id, model_context)
@@ -239,6 +252,9 @@ class ExecutionCommandService:
         execution_run_id: str,
         model_context: dict[str, Any],
     ) -> Callable[[str, str, dict[str, Any], dict[str, Any], int, float], Awaitable[None]]:
+        # Step emitter — мост между LangGraph node handlers и event backbone.
+        # Сами node handlers не знают ничего о Kafka topics, metric events или
+        # cost accounting: они просто отдают бизнес-результат и telemetry.
         async def _emit(
             step_name: str,
             agent_name: str,

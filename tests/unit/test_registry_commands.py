@@ -11,6 +11,8 @@ from app.runtime import AppRuntime
 
 @pytest.mark.asyncio
 async def test_create_agent_publishes_registry_and_audit_events(runtime: AppRuntime) -> None:
+    # Тест гарантирует, что write-side registry не ограничивается одним domain event,
+    # а также публикует audit trail для административно значимого действия.
     response = await runtime.registry_commands.create_agent(
         CreateAgentRequest(name="planner-agent", owner="ops-team")
     )

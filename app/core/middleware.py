@@ -15,6 +15,9 @@ logger = get_logger(__name__)
 
 class CorrelationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        # Correlation и trace id поднимаются в самом начале request pipeline,
+        # чтобы все дальнейшие логи, audit events и Kafka messages наследовали
+        # один и тот же контекст трассировки.
         correlation_id = ensure_correlation_id(request.headers.get("X-Correlation-Id"))
         trace_id = set_trace_id(request.headers.get("X-Trace-Id") or str(uuid4()))
         start = time.perf_counter()
@@ -39,6 +42,8 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
 
 class RateLimitStubMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        # Пока это stub, но он резервирует стабильную точку расширения для будущего
+        # реального rate limiting без переписывания HTTP pipeline.
         response = await call_next(request)
         response.headers["X-RateLimit-Policy"] = "stub"
         return response

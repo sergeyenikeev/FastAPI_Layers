@@ -9,6 +9,8 @@ from app.domain.enums import AlertSeverity, DriftType
 
 
 class DriftFinding(BaseModel):
+    # DriftFinding — единый результат drift detector-а, из которого затем
+    # публикуется drift event и materialized drift report.
     drift_type: str
     severity: str
     metric_name: str
@@ -24,6 +26,8 @@ class DriftDetector(Protocol):
 def population_stability_index(
     baseline: list[float], current: list[float], bins: int = 10
 ) -> float:
+    # PSI используется как классическая метрика data drift для сравнения
+    # распределений baseline и current на одинаковых бинах.
     if not baseline or not current:
         return 0.0
     min_value = min(min(baseline), min(current))
@@ -53,6 +57,8 @@ def kl_divergence(p: list[float], q: list[float]) -> float:
 
 
 def jensen_shannon_divergence(baseline: list[float], current: list[float]) -> float:
+    # Jensen-Shannon divergence выбрана как симметричная и более устойчивая
+    # альтернатива "сырому" KL для сравнений output/embedding distribution.
     if not baseline or not current:
         return 0.0
     size = min(len(baseline), len(current))
@@ -67,6 +73,7 @@ def jensen_shannon_divergence(baseline: list[float], current: list[float]) -> fl
 
 
 class PSIDetector:
+    # PSI detector ориентирован в первую очередь на data drift сигналы.
     def __init__(self, threshold: float = 0.2, drift_type: str = DriftType.DATA_DRIFT) -> None:
         self.threshold = threshold
         self.drift_type = drift_type
@@ -89,6 +96,8 @@ class PSIDetector:
 
 
 class JensenShannonDetector:
+    # Jensen-Shannon detector используется для output и embedding drift, где
+    # важнее сравнение форм распределения, чем порог по абсолютному значению.
     def __init__(self, threshold: float = 0.1, drift_type: str = DriftType.OUTPUT_DRIFT) -> None:
         self.threshold = threshold
         self.drift_type = drift_type
@@ -111,6 +120,8 @@ class JensenShannonDetector:
 
 
 class DriftDetectionService:
+    # Сервис скрывает конкретный набор drift detectors и делает drift pipeline
+    # расширяемым без изменения worker handler-ов.
     def __init__(self, detectors: list[DriftDetector]) -> None:
         self.detectors = detectors
 

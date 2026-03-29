@@ -20,6 +20,9 @@ logger = get_logger(__name__)
 
 
 class AlertingService:
+    # AlertingService отвечает за dedupe, cooldown и внешнюю доставку сигналов.
+    # Он специально отделен от anomaly/drift handlers, чтобы политика alerting-а
+    # могла эволюционировать независимо от detection logic.
     def __init__(self, publisher: PublisherProtocol, settings: Settings) -> None:
         self.publisher = publisher
         self.settings = settings
@@ -36,6 +39,8 @@ class AlertingService:
         entity_type: str,
         entity_id: str,
     ) -> EventEnvelope | None:
+        # Один и тот же operational сигнал не должен бесконечно плодить новые
+        # alert entities. Поэтому сначала ищется существующий alert по dedupe_key.
         dedupe_key = f"{signal_type}:{entity_type}:{entity_id}:{title}"
         existing = await self._find_existing_alert(session, dedupe_key)
         now = utc_now()
@@ -76,10 +81,14 @@ class AlertingService:
         return event
 
     async def _find_existing_alert(self, session: AsyncSession, dedupe_key: str) -> Alert | None:
+        # Dedupe хранится в БД, а не в памяти процесса, чтобы alerting оставался
+        # консистентным даже при рестартах и горизонтальном масштабировании.
         query = select(Alert).where(Alert.dedupe_key == dedupe_key)
         return (await session.execute(query)).scalar_one_or_none()
 
     async def _dispatch_notifications(self, severity: str, title: str, description: str) -> None:
+        # Сейчас здесь лог, webhook и email stub. Важно, что доставка уже
+        # отделена от генерации alert event и может расширяться независимо.
         logger.warning("alert.dispatched", severity=severity, title=title, description=description)
         if self.settings.default_alert_webhook:
             try:
@@ -101,6 +110,8 @@ class AlertingService:
 
 
 def severity_from_score(score: float) -> str:
+    # Вспомогательная функция оставляет единое правило маппинга score -> severity
+    # там, где источник сигнала еще не отдает готовую категорию критичности.
     if score >= 3:
         return AlertSeverity.CRITICAL
     if score >= 1.5:

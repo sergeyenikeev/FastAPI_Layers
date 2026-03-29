@@ -30,12 +30,16 @@ from app.domain.events import EventEnvelope
 
 
 def parse_datetime(value: Any) -> datetime | None:
+    # Проекции получают datetime как из Python-кода, так и из JSON envelope.
+    # Нормализация в одном месте не дает разнести парсинг по десяткам handlers.
     if value is None or isinstance(value, datetime):
         return value
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def json_safe(value: Any) -> Any:
+    # Projection layer хранит payload целиком и потому обязан уметь приводить
+    # вложенные значения к JSON-safe виду перед записью в ORM/DB.
     if isinstance(value, datetime):
         return value.isoformat()
     if isinstance(value, dict):
@@ -48,6 +52,9 @@ def json_safe(value: Any) -> Any:
 
 
 class ProjectionService:
+    # ProjectionService — центральная точка materialization для read-side.
+    # Все domain/system events приходят сюда и превращаются в PostgreSQL модели,
+    # из которых затем читают FastAPI query endpoints.
     async def apply(self, session: AsyncSession, event: EventEnvelope) -> None:
         # Event type is mapped to a handler by naming convention. This keeps the dispatch
         # table compact and makes new projection handlers easy to add incrementally.
@@ -58,6 +65,8 @@ class ProjectionService:
         await handler(session, event)
 
     async def _handle_agent_created(self, session: AsyncSession, event: EventEnvelope) -> None:
+        # agent.created materializes сразу две сущности: агента и его стартовую
+        # версию, потому что write-side создает их в одном событии.
         agent_payload = event.payload["agent"]
         version_payload = event.payload["agent_version"]
         await self._upsert(session, Agent, agent_payload)
@@ -99,6 +108,8 @@ class ProjectionService:
         await self._delete(session, GraphDefinition, event.payload["graph_definition_id"])
 
     async def _handle_deployment_created(self, session: AsyncSession, event: EventEnvelope) -> None:
+        # deployment.created может нести и environment, если write-side создал
+        # или выбрал окружение через deployment contract. Проекция терпит оба случая.
         if "environment" in event.payload:
             await self._upsert(session, Environment, event.payload["environment"])
         await self._upsert(session, Deployment, event.payload["deployment"])
@@ -189,12 +200,16 @@ class ProjectionService:
         await self._upsert(session, ExecutionStep, payload)
 
     async def _handle_health_recorded(self, session: AsyncSession, event: EventEnvelope) -> None:
+        # Health events materialize отдельно от runtime probe endpoints, чтобы
+        # платформа сохраняла историю проверок, а не только текущее состояние.
         payload = dict(event.payload)
         payload["id"] = event.event_id
         payload["checked_at"] = parse_datetime(payload["checked_at"])
         await self._upsert(session, HealthCheckResult, payload)
 
     async def _handle_metric_recorded(self, session: AsyncSession, event: EventEnvelope) -> None:
+        # Metric events тоже materialize в БД, потому что read API и detectors
+        # работают не по Prometheus scrape, а по собственной read model истории.
         payload = dict(event.payload)
         payload["id"] = event.event_id
         payload["sampled_at"] = parse_datetime(payload["sampled_at"])
@@ -228,6 +243,8 @@ class ProjectionService:
         await self._upsert_alert(session, event.payload["alert"])
 
     async def _handle_audit_recorded(self, session: AsyncSession, event: EventEnvelope) -> None:
+        # Audit envelope хранит event timestamp и trace identifiers из transport
+        # слоя, чтобы история действий была кросс-системно трассируемой.
         payload = event.payload
         await self._upsert(
             session,
@@ -292,6 +309,8 @@ class ProjectionService:
             )
 
     async def _upsert_alert(self, session: AsyncSession, payload: dict[str, Any]) -> None:
+        # Alert-ы upsert-ятся отдельно, потому что у них есть last_sent_at и
+        # lifecycle-поля, которые часто обновляются повторно одним dedupe-key flow.
         payload = dict(payload)
         payload["last_sent_at"] = parse_datetime(payload.get("last_sent_at"))
         entity = await session.get(Alert, payload["id"])
@@ -307,6 +326,9 @@ class ProjectionService:
         model_cls: type[Base],
         entity_id: str | None,
     ) -> str | None:
+        # FK intentionally не форсируются во что бы то ни стало: если связанная
+        # строка еще не materialized, read-side предпочитает временно потерять
+        # ссылку, чем упасть и остановить обработку partition.
         if not entity_id:
             return None
         if await session.get(model_cls, entity_id) is None:

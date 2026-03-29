@@ -8,6 +8,8 @@ from app.db.session import get_session
 from app.domain.schemas import AlertDTO, Page
 from app.modules.alerting.queries import AlertQueryService
 
+# Alerting router intentionally read-only: создание alert-ов идет через events
+# и workers, а HTTP API здесь служит для операторского просмотра их состояния.
 router = APIRouter(prefix="", tags=["alerting"])
 
 
@@ -40,6 +42,8 @@ async def list_alerts(
     session: AsyncSession = Depends(get_session),
     service: AlertQueryService = Depends(get_alert_queries),
 ) -> Page[AlertDTO]:
+    # Список alert-ов читается только из read model, уже после применения
+    # dedupe/cooldown и materialization alert events в БД.
     return await service.list_alerts(
         session,
         page=page,

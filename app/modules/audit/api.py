@@ -8,6 +8,8 @@ from app.db.session import get_session
 from app.domain.schemas import AuditEventDTO, Page
 from app.modules.audit.queries import AuditQueryService
 
+# Audit router предоставляет доступ к materialized audit trail и не участвует
+# в генерации audit events — это responsibility audit service и write-side flow.
 router = APIRouter(prefix="", tags=["audit"])
 
 
@@ -37,6 +39,8 @@ async def list_audit_events(
     session: AsyncSession = Depends(get_session),
     service: AuditQueryService = Depends(get_audit_queries),
 ) -> Page[AuditEventDTO]:
+    # Query по audit trail нужен для расследований и postmortem-сценариев, где
+    # важно фильтровать события по типу сущности и просматривать их историю.
     return await service.list_audit_events(
         session,
         page=page,

@@ -8,6 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Settings — единая typed-конфигурация процесса. Все runtime и HTTP слои
+    # читают окружение через эту модель, а не через прямые os.getenv вызовы.
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -63,6 +65,8 @@ class Settings(BaseSettings):
     @field_validator("kafka_bootstrap_servers", "api_keys", "model_probe_urls", mode="before")
     @classmethod
     def _split_csv(cls, value: str | list[str] | None) -> list[str]:
+        # Локальные env-файлы и Helm values могут поставлять списки как JSON-массив
+        # или как CSV-строку. Валидатор нормализует оба варианта к одному типу.
         if value is None:
             return []
         if isinstance(value, list):
@@ -72,6 +76,8 @@ class Settings(BaseSettings):
     @field_validator("debug", "prometheus_enabled", "kafka_enable_idempotence", mode="before")
     @classmethod
     def _parse_bool(cls, value: object) -> bool:
+        # Булевы env-значения часто приходят в разных формах из Docker/Helm/CI.
+        # Валидатор делает их поведение предсказуемым на всех окружениях.
         if isinstance(value, bool):
             return value
         if value is None:
@@ -86,4 +92,6 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    # Конфигурация кэшируется на процесс, чтобы все модули видели один и тот же
+    # Settings instance и не парсили `.env` повторно на каждом импорте.
     return Settings()

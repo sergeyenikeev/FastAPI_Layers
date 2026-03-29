@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from prometheus_client import Counter, Gauge, Histogram
 
+# Здесь объявлены process-wide Prometheus метрики runtime-слоя. Они являются
+# техническими метриками процесса и не заменяют event/materialized metrics,
+# которые платформа дополнительно хранит в собственной read model.
 REQUEST_COUNT = Counter(
     "workflow_platform_http_requests_total",
     "Total HTTP requests",

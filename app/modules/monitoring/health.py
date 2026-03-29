@@ -18,6 +18,8 @@ from app.modules.monitoring.schemas import ComponentHealth, HealthSummary
 
 
 class HealthService:
+    # HealthService объединяет process health, инфраструктурные проверки и
+    # историю heartbeat worker-ов. Он обслуживает и readiness probes, и deep diagnostics.
     def __init__(
         self,
         settings: Settings,
@@ -29,6 +31,8 @@ class HealthService:
         self.publisher = publisher
 
     async def live(self) -> HealthSummary:
+        # Live check отвечает только на вопрос "процесс жив". Здесь не должно быть
+        # тяжелых внешних зависимостей, иначе liveness probe будет слишком хрупкой.
         return HealthSummary(
             status="passing",
             components=[
@@ -42,6 +46,8 @@ class HealthService:
         )
 
     async def ready(self, session: AsyncSession) -> HealthSummary:
+        # Readiness проверяет, что API готов обслуживать запросы и имеет доступ
+        # к обязательным зависимостям: БД, Redis, Kafka state и worker presence.
         components = [
             await self._check_db(),
             await self._check_redis(),
@@ -52,6 +58,8 @@ class HealthService:
         return HealthSummary(status=status, components=components)
 
     async def deep(self, session: AsyncSession) -> HealthSummary:
+        # Deep health включает дополнительные проверки model endpoints и публикует
+        # каждую компонентную проверку как событие в health event stream.
         components = [
             await self._check_db(),
             await self._check_redis(),
@@ -83,6 +91,8 @@ class HealthService:
         return HealthSummary(status=status, components=components)
 
     async def _check_db(self) -> ComponentHealth:
+        # БД проверяется реальным lightweight запросом, а не только фактом наличия
+        # engine, чтобы readiness отражал реальную доступность PostgreSQL.
         checked_at = utc_now()
         try:
             async with self.engine.connect() as connection:
@@ -99,6 +109,8 @@ class HealthService:
             )
 
     async def _check_redis(self) -> ComponentHealth:
+        # Redis проверяется отдельным ping, потому что он нужен не только для cache-
+        # подобных задач, но и как часть общей operational topology платформы.
         checked_at = utc_now()
         try:
             redis = Redis.from_url(self.settings.redis_url)
@@ -118,6 +130,8 @@ class HealthService:
             )
 
     def _check_kafka_state(self) -> ComponentHealth:
+        # Для Kafka здесь пока возвращается конфигурационный health, а не глубокий
+        # broker probe. Это дешевле и достаточно для текущего API readiness path.
         checked_at = utc_now()
         return ComponentHealth(
             component="kafka",

@@ -32,7 +32,12 @@ from app.domain.enums import (
 )
 
 
+# Этот модуль описывает materialized state платформы в PostgreSQL.
+# Здесь живут и registry-сущности, и execution read-side, и operational таблицы
+# вроде metrics/anomalies/alerts/audit/processed_events.
 class Agent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # Agent — верхнеуровневая registry-сущность. Исполнимым его делает не сам
+    # объект, а одна из связанных AgentVersion, где хранится runtime-конфигурация.
     __tablename__ = "agents"
 
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -45,6 +50,7 @@ class Agent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class GraphDefinition(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # GraphDefinition описывает логический workflow отдельно от конкретного агента.
     __tablename__ = "graph_definitions"
 
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -58,6 +64,8 @@ class GraphDefinition(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class AgentVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # Version отделена от Agent, чтобы один logical agent мог эволюционировать
+    # без потери истории и чтобы deployment ссылался на стабильную версию.
     __tablename__ = "agent_versions"
     __table_args__ = (UniqueConstraint("agent_id", "version", name="uq_agent_version"),)
 
@@ -76,6 +84,7 @@ class AgentVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class ModelEndpoint(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # ModelEndpoint хранит конфигурацию точки входа к inference-провайдеру.
     __tablename__ = "model_endpoints"
 
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -89,6 +98,7 @@ class ModelEndpoint(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class ModelVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # ModelVersion фиксирует конкретную версию модели, tokenizer и pricing.
     __tablename__ = "model_versions"
     __table_args__ = (UniqueConstraint("model_endpoint_id", "version", name="uq_model_version"),)
 
@@ -127,6 +137,8 @@ class Environment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class Deployment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # Deployment связывает agent version, model version и environment в одну
+    # исполнимую конфигурацию, по которой потом стартуют execution run-ы.
     __tablename__ = "deployments"
 
     agent_version_id: Mapped[str] = mapped_column(
@@ -152,6 +164,8 @@ class Deployment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class ExecutionRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # ExecutionRun — read-side запись о запуске сценария. Она обновляется
+    # событиями execution.started / execution.finished / execution.failed.
     __tablename__ = "execution_runs"
 
     deployment_id: Mapped[str | None] = mapped_column(
@@ -177,6 +191,8 @@ class ExecutionRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class ExecutionStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # ExecutionStep materializes step-level telemetry и бизнес-результат каждого
+    # узла workflow, что делает разбор execution-а детальным и аудируемым.
     __tablename__ = "execution_steps"
 
     execution_run_id: Mapped[str] = mapped_column(
@@ -212,6 +228,8 @@ class HealthCheckResult(UUIDPrimaryKeyMixin, Base):
 
 
 class MetricSample(UUIDPrimaryKeyMixin, Base):
+    # MetricSample — историческая read model для system/business metrics, которую
+    # используют monitoring query endpoints, anomaly detection и drift logic.
     __tablename__ = "metric_samples"
     __table_args__ = (
         Index("ix_metric_samples_metric_name_sampled_at", "metric_name", "sampled_at"),
@@ -229,6 +247,8 @@ class MetricSample(UUIDPrimaryKeyMixin, Base):
 
 
 class CostRecord(UUIDPrimaryKeyMixin, Base):
+    # CostRecord отделен от ExecutionRun, потому что один run может порождать
+    # несколько cost events и cost analytics требуют своей временной истории.
     __tablename__ = "cost_records"
     __table_args__ = (Index("ix_cost_records_occurred_at", "occurred_at"),)
 
@@ -285,6 +305,7 @@ class DriftReport(UUIDPrimaryKeyMixin, Base):
 
 
 class Alert(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    # Alert — materialized operational сигнал после dedupe и cooldown политики.
     __tablename__ = "alerts"
     __table_args__ = (UniqueConstraint("dedupe_key", name="uq_alert_dedupe_key"),)
 
@@ -312,6 +333,8 @@ class AuditEvent(UUIDPrimaryKeyMixin, Base):
 
 
 class ProcessedEvent(UUIDPrimaryKeyMixin, Base):
+    # ProcessedEvent — основа consumer idempotency. Таблица хранит, что именно
+    # уже было успешно обработано конкретной consumer group.
     __tablename__ = "processed_events"
     __table_args__ = (
         UniqueConstraint("consumer_group", "event_id", name="uq_processed_event_consumer_group"),
@@ -326,6 +349,8 @@ class ProcessedEvent(UUIDPrimaryKeyMixin, Base):
 
 
 class WorkerHeartbeat(UUIDPrimaryKeyMixin, Base):
+    # Heartbeat read model показывает, какие worker-процессы живы и когда
+    # последний раз подтверждали свое присутствие в event backbone.
     __tablename__ = "worker_heartbeats"
     __table_args__ = (UniqueConstraint("worker_name", name="uq_worker_heartbeat_worker_name"),)
 

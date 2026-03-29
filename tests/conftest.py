@@ -22,6 +22,8 @@ from app.runtime import AppRuntime
 
 @pytest_asyncio.fixture
 async def db_engine() -> AsyncIterator[AsyncEngine]:
+    # Для тестов используется in-memory SQLite, чтобы быстро проверять
+    # orchestration/query/projection flow без внешнего PostgreSQL контейнера.
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         poolclass=StaticPool,
@@ -40,6 +42,8 @@ async def session_factory(db_engine: AsyncEngine) -> async_sessionmaker[AsyncSes
 
 @pytest.fixture
 def test_settings() -> Settings:
+    # Settings переопределяются под тестовый контур: in-memory БД, test API key,
+    # локальный JWT secret и отключенный production-specific runtime noise.
     return Settings(
         APP_ENV="test",
         DEBUG=False,
@@ -58,6 +62,8 @@ async def runtime(
     session_factory: async_sessionmaker[AsyncSession],
     db_engine: AsyncEngine,
 ) -> AsyncIterator[AppRuntime]:
+    # Тестовый runtime собирается так же, как production runtime, но с test
+    # settings и in-memory publisher. Это keeps wiring максимально реалистичным.
     runtime = AppRuntime(test_settings, session_factory=session_factory, engine_override=db_engine)
     await runtime.startup()
     yield runtime
@@ -66,6 +72,8 @@ async def runtime(
 
 @pytest_asyncio.fixture
 async def client(runtime: AppRuntime) -> AsyncIterator[AsyncClient]:
+    # Фикстура клиента подменяет get_runtime/get_settings и session dependency,
+    # чтобы HTTP-тесты проходили через настоящий FastAPI app, но на test runtime.
     import app.core.security as security_module
     import app.main
     import app.runtime as runtime_module

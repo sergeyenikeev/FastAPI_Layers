@@ -9,6 +9,9 @@ from app.messaging.topics import AUDIT_EVENTS_TOPIC
 
 
 class AuditService:
+    # AuditService публикует все значимые действия как отдельный event stream.
+    # Это позволяет хранить audit trail вне business tables и материализовать
+    # его в удобную read model через тот же projection pipeline.
     def __init__(self, publisher: PublisherProtocol) -> None:
         self.publisher = publisher
 
@@ -20,6 +23,8 @@ class AuditService:
         entity_id: str,
         payload: dict[str, Any],
     ) -> EventEnvelope:
+        # Audit событие всегда обогащается actor/correlation/trace контекстом из
+        # request-local context layer, чтобы связать действие с конкретным вызовом.
         event = EventEnvelope(
             event_type="audit.recorded",
             correlation_id=get_correlation_id(),

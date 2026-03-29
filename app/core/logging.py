@@ -12,6 +12,8 @@ from app.core.context import get_correlation_id, get_principal_id, get_trace_id
 def _inject_context(
     _logger: structlog.stdlib.BoundLogger, _method_name: str, event_dict: dict[str, object]
 ) -> dict[str, object]:
+    # Логгер автоматически обогащается текущими correlation/trace/principal id,
+    # чтобы любой лог можно было связать с запросом, событием и пользователем.
     event_dict.setdefault("correlation_id", get_correlation_id())
     event_dict.setdefault("trace_id", get_trace_id())
     event_dict.setdefault("principal_id", get_principal_id())
@@ -19,6 +21,8 @@ def _inject_context(
 
 
 def configure_logging() -> None:
+    # Проект использует structlog в JSON-режиме, потому что такие логи легче
+    # агрегировать в Kubernetes и связывать с tracing/alerting системами.
     timestamper = structlog.processors.TimeStamper(fmt="iso", utc=True)
     shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
@@ -48,4 +52,6 @@ def configure_logging() -> None:
 
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+    # Обертка сохраняет единый способ получать логгер и не размазывать по коду
+    # прямую зависимость от деталей structlog configuration.
     return structlog.get_logger(name)

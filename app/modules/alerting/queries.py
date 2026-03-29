@@ -9,6 +9,8 @@ from app.domain.schemas import AlertDTO, Page
 
 
 class AlertQueryService:
+    # Query service alerting-слоя читает только уже materialized alert entities
+    # и не содержит логики dedupe, cooldown или dispatch-а уведомлений.
     async def list_alerts(
         self,
         session: AsyncSession,

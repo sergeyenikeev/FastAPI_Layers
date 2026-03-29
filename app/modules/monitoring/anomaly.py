@@ -10,6 +10,8 @@ from app.domain.enums import AlertSeverity, AnomalyType
 
 
 class AnomalyFinding(BaseModel):
+    # Finding — нормализованный результат detector-а, из которого потом строится
+    # anomaly event и materialized anomaly report.
     anomaly_type: str
     severity: str
     score: float
@@ -23,6 +25,8 @@ class AnomalyDetector(Protocol):
 
 
 class ThresholdRuleDetector:
+    # Threshold detector нужен для грубых, но прозрачных guard rails, где
+    # порог заранее известен и должен срабатывать без статистического baseline.
     def __init__(self, threshold: float, anomaly_type: str = AnomalyType.LATENCY_SPIKE) -> None:
         self.threshold = threshold
         self.anomaly_type = anomaly_type
@@ -44,6 +48,8 @@ class ThresholdRuleDetector:
 
 
 class RollingStdDetector:
+    # RollingStdDetector ловит локальные всплески относительно недавнего окна,
+    # когда абсолютный threshold не подходит, но важна краткосрочная динамика.
     def __init__(self, window_size: int = 10, std_multiplier: float = 2.0) -> None:
         self.window_size = window_size
         self.std_multiplier = std_multiplier
@@ -70,6 +76,8 @@ class RollingStdDetector:
 
 
 class ZScoreDetector:
+    # Z-score detector — более общий статистический механизм, который хорошо
+    # работает для latency/cost spikes без жестко заданного абсолютного порога.
     def __init__(self, z_threshold: float, anomaly_type: str) -> None:
         self.z_threshold = z_threshold
         self.anomaly_type = anomaly_type
@@ -100,6 +108,8 @@ class ZScoreDetector:
 
 
 class AnomalyDetectionService:
+    # Сервис делает anomaly detection pluggable: pipeline не знает, какие именно
+    # detectors используются, и может расширяться добавлением новых стратегий.
     def __init__(self, detectors: list[AnomalyDetector]) -> None:
         self.detectors = detectors
 
@@ -115,6 +125,8 @@ class AnomalyDetectionService:
 def build_default_anomaly_detectors(
     latency_zscore: float, cost_zscore: float
 ) -> list[AnomalyDetector]:
+    # Набор по умолчанию сочетает rule-based и статистические подходы, чтобы
+    # платформа ловила как грубые threshold violations, так и мягкие выбросы.
     return [
         ThresholdRuleDetector(threshold=5000.0, anomaly_type=AnomalyType.LATENCY_SPIKE),
         RollingStdDetector(window_size=10, std_multiplier=2.0),

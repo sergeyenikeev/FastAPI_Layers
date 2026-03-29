@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Topics и их DLQ собраны в одном модуле, чтобы publisher, workers, Helm values
+# и документация опирались на единый source of truth для event backbone.
 AGENT_EXECUTIONS_TOPIC = "agent.executions"
 AGENT_EXECUTION_DLQ_TOPIC = "agent.executions.dlq"
 AGENT_STEPS_TOPIC = "agent.steps"

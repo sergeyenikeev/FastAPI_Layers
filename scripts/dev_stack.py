@@ -11,6 +11,10 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+# Скрипт является единым локальным bootstrap entrypoint для Docker-окружения.
+# Он intentionally не зависит от внутренних Python runtime-объектов приложения,
+# а работает как внешний операторский инструмент: проверяет Docker, поднимает
+# compose stack, выполняет seed и запускает smoke-проверку публичного API.
 ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
 ENV_EXAMPLE_FILE = ROOT / ".env.example"
@@ -75,6 +79,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_command(args: list[str]) -> None:
+    # Все внешние команды выполняются из корня репозитория, чтобы одинаково
+    # работали compose, uv и относительные пути независимо от cwd пользователя.
     completed = subprocess.run(args, cwd=ROOT, check=False)
     if completed.returncode != 0:
         raise SystemExit(completed.returncode)
@@ -97,6 +103,8 @@ def ensure_docker_available() -> None:
 
 
 def ensure_env_file() -> None:
+    # Локальная разработка должна стартовать даже в "чистом" клоне репозитория,
+    # поэтому .env автоматически создается из example-файла при первом запуске.
     if not ENV_FILE.exists():
         ENV_FILE.write_text(ENV_EXAMPLE_FILE.read_text(encoding="utf-8"), encoding="utf-8")
         print("Создан локальный .env из .env.example")
@@ -104,6 +112,8 @@ def ensure_env_file() -> None:
 
 
 def normalize_env_file() -> None:
+    # Некоторые настройки ожидаются Pydantic как JSON-массивы, а локальный пользователь
+    # может заполнить их CSV-строкой. Нормализация делает bootstrap устойчивым.
     lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
     normalized: list[str] = []
     for line in lines:
@@ -193,6 +203,8 @@ def wait_for_execution_projection(
 
 
 def run_smoke(timeout_sec: int) -> None:
+    # Smoke deliberately проверяет платформу через публичные HTTP endpoints, а не
+    # через внутренние Python вызовы, чтобы валидировать реальный локальный стек.
     env_values = parse_env_map()
     api_key = get_first_env_value(env_values["API_KEYS"])
     headers = {"X-API-Key": api_key}
@@ -230,6 +242,8 @@ def run_smoke(timeout_sec: int) -> None:
 
 
 def run_seed(timeout_sec: int) -> None:
+    # Seed вынесен в отдельный скрипт, но dev_stack orchestrates его как часть
+    # общего bootstrap flow, чтобы после старта API не был "пустым".
     run_command(
         [
             sys.executable,
@@ -241,6 +255,8 @@ def run_seed(timeout_sec: int) -> None:
 
 
 def start_stack(no_build: bool, skip_seed: bool, skip_smoke: bool, timeout_sec: int) -> None:
+    # Основной happy path локальной разработки: поднять стек, дождаться API,
+    # наполнить реестр demo-данными и optionally прогнать smoke.
     ensure_docker_available()
     ensure_env_file()
     compose_args = ["docker", "compose", "up", "-d"]
@@ -268,6 +284,8 @@ def start_stack(no_build: bool, skip_seed: bool, skip_smoke: bool, timeout_sec: 
 
 
 def stop_stack(volumes: bool) -> None:
+    # Остановка остается симметричной старту, чтобы developer workflow был
+    # предсказуемым и не требовал ручного compose lifecycle management.
     ensure_docker_available()
     args = ["docker", "compose", "down"]
     if volumes:

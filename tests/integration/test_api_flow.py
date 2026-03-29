@@ -11,6 +11,8 @@ from app.runtime import AppRuntime
 
 
 async def apply_emitted_events(runtime: AppRuntime) -> None:
+    # В integration-тестах мы материализуем накопленные in-memory events вручную,
+    # чтобы воспроизвести CQRS lag контролируемым и детерминированным способом.
     publisher = cast(InMemoryPublisher, runtime.publisher)
     async with runtime.session_factory() as session:
         for _topic, event in publisher.events:
@@ -22,6 +24,7 @@ async def apply_emitted_events(runtime: AppRuntime) -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_agent_create_and_query_flow(client: AsyncClient, runtime: AppRuntime) -> None:
+    # Сквозной тест защищает базовый registry flow: write через API -> projection -> read API.
     response = await client.post(
         "/api/v1/agents",
         headers={"X-API-Key": "test-key"},
@@ -42,6 +45,7 @@ async def test_agent_create_and_query_flow(client: AsyncClient, runtime: AppRunt
 async def test_execution_api_creates_run_projection(
     client: AsyncClient, runtime: AppRuntime
 ) -> None:
+    # Проверяем, что execution через API действительно доходит до read-side execution list.
     response = await client.post(
         "/api/v1/executions",
         headers={"X-API-Key": "test-key"},
@@ -65,6 +69,8 @@ async def test_execution_api_creates_run_projection(
 async def test_execution_api_runs_langgraph_steps_in_expected_order(
     client: AsyncClient, runtime: AppRuntime
 ) -> None:
+    # Этот тест подтверждает основной runtime-path: API -> background workflow ->
+    # step events -> projection -> детальный execution endpoint.
     response = await client.post(
         "/api/v1/executions",
         headers={"X-API-Key": "test-key"},
@@ -103,6 +109,7 @@ async def test_execution_api_runs_langgraph_steps_in_expected_order(
 async def test_execution_api_routes_through_validator_when_requested(
     client: AsyncClient, runtime: AppRuntime
 ) -> None:
+    # Отдельно защищаем branch с validator, чтобы условная маршрутизация не сломалась.
     response = await client.post(
         "/api/v1/executions",
         headers={"X-API-Key": "test-key"},

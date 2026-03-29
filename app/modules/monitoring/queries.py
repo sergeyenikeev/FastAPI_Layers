@@ -21,6 +21,8 @@ from app.modules.monitoring.schemas import PerformanceSummary
 
 
 def percentile(values: list[float], q: float) -> float:
+    # Локальная реализация percentile keeps monitoring query service независимым
+    # от внешних научных библиотек и полностью детерминированным в тестах.
     if not values:
         return 0.0
     ordered = sorted(values)
@@ -34,6 +36,8 @@ def percentile(values: list[float], q: float) -> float:
 
 
 class MonitoringQueryService:
+    # MonitoringQueryService работает только по read-side таблицам метрик, стоимости,
+    # anomaly и drift. Он не читает Prometheus напрямую и не ходит в Kafka.
     async def list_metrics(
         self,
         session: AsyncSession,
@@ -62,6 +66,8 @@ class MonitoringQueryService:
     async def performance_summary(
         self, session: AsyncSession, window_minutes: int = 60
     ) -> PerformanceSummary:
+        # Summary собирает агрегаты из materialized metric history и execution history,
+        # а не из runtime counters. Это делает ответ воспроизводимым и историчным.
         window_start = utc_now() - timedelta(minutes=window_minutes)
         latency_query = select(MetricSample.value).where(
             MetricSample.metric_name == "step_duration_ms",

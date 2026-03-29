@@ -4,6 +4,8 @@ from enum import StrEnum
 
 
 class LifecycleStatus(StrEnum):
+    # LifecycleStatus используется в registry-сущностях и отражает общий
+    # жизненный цикл записи, а не конкретный runtime-статус выполнения.
     ACTIVE = "active"
     INACTIVE = "inactive"
     PENDING = "pending"
@@ -19,6 +21,8 @@ class DeploymentStatus(StrEnum):
 
 
 class ExecutionStatus(StrEnum):
+    # ExecutionStatus используется и в execution_run, и в execution_step, чтобы
+    # command-side, projections и query-side говорили на одном словаре статусов.
     PENDING = "pending"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
