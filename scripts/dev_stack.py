@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
 ENV_EXAMPLE_FILE = ROOT / ".env.example"
 EXECUTION_EXAMPLE_FILE = ROOT / "examples" / "workflow_execution_with_validator.json"
+SEED_SCRIPT_FILE = ROOT / "scripts" / "seed_demo_data.py"
 DEFAULT_TIMEOUT_SECONDS = 240
 
 
@@ -36,6 +37,11 @@ def parse_args() -> argparse.Namespace:
         help="Не запускать smoke-проверку после старта",
     )
     start_parser.add_argument(
+        "--skip-seed",
+        action="store_true",
+        help="Не создавать demo-данные после старта",
+    )
+    start_parser.add_argument(
         "--timeout-sec",
         type=int,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -48,6 +54,14 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=30,
         help="Таймаут ожидания materialized read-side execution",
+    )
+
+    seed_parser = subparsers.add_parser("seed", help="Создать demo-данные")
+    seed_parser.add_argument(
+        "--timeout-sec",
+        type=int,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Таймаут ожидания materialized demo-данных",
     )
 
     stop_parser = subparsers.add_parser("stop", help="Остановить локальный стек")
@@ -215,7 +229,18 @@ def run_smoke(timeout_sec: int) -> None:
     print(f"StepNames       : {step_names}")
 
 
-def start_stack(no_build: bool, skip_smoke: bool, timeout_sec: int) -> None:
+def run_seed(timeout_sec: int) -> None:
+    run_command(
+        [
+            sys.executable,
+            str(SEED_SCRIPT_FILE),
+            "--timeout-sec",
+            str(timeout_sec),
+        ]
+    )
+
+
+def start_stack(no_build: bool, skip_seed: bool, skip_smoke: bool, timeout_sec: int) -> None:
     ensure_docker_available()
     ensure_env_file()
     compose_args = ["docker", "compose", "up", "-d"]
@@ -230,6 +255,10 @@ def start_stack(no_build: bool, skip_smoke: bool, timeout_sec: int) -> None:
 
     print("Текущее состояние контейнеров:")
     run_command(["docker", "compose", "ps"])
+
+    if not skip_seed:
+        print("Создание demo-данных...")
+        run_seed(timeout_sec=timeout_sec)
 
     if not skip_smoke:
         print("Запуск smoke-проверки...")
@@ -252,12 +281,16 @@ def main() -> None:
     if args.command == "start":
         start_stack(
             no_build=bool(args.no_build),
+            skip_seed=bool(args.skip_seed),
             skip_smoke=bool(args.skip_smoke),
             timeout_sec=int(args.timeout_sec),
         )
         return
     if args.command == "smoke":
         run_smoke(timeout_sec=int(args.timeout_sec))
+        return
+    if args.command == "seed":
+        run_seed(timeout_sec=int(args.timeout_sec))
         return
     if args.command == "stop":
         stop_stack(volumes=bool(args.volumes))

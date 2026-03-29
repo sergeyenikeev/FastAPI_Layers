@@ -29,10 +29,14 @@ def get_alert_queries() -> AlertQueryService:
     ),
 )
 async def list_alerts(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    severity: str | None = Query(default=None),
-    status: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    severity: str | None = Query(
+        default=None, description="Фильтр по severity: info, warning, critical."
+    ),
+    status: str | None = Query(
+        default=None, description="Фильтр по статусу алерта: open, acknowledged, closed."
+    ),
     session: AsyncSession = Depends(get_session),
     service: AlertQueryService = Depends(get_alert_queries),
 ) -> Page[AlertDTO]:

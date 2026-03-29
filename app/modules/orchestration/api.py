@@ -56,10 +56,14 @@ async def create_execution(
     ),
 )
 async def list_executions(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    deployment_id: str | None = Query(default=None),
-    status: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    deployment_id: str | None = Query(
+        default=None, description="Фильтр по конкретному deployment_id."
+    ),
+    status: str | None = Query(
+        default=None, description="Фильтр по статусу выполнения: running, succeeded, failed."
+    ),
     session: AsyncSession = Depends(get_session),
     service: ExecutionQueryService = Depends(get_execution_queries),
 ) -> Page[ExecutionRunDTO]:

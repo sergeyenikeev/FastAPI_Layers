@@ -36,8 +36,9 @@
 1. Скопируйте `.env.example` в `.env`
 2. Установите зависимости через `uv`: `uv sync --extra dev`
 3. Рекомендуемый единый запуск: `uv run python scripts/dev_stack.py start`
-4. Альтернатива для Windows: `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`
-5. Альтернатива для Unix: `sh scripts/start-local.sh`
+4. При таком старте платформа автоматически создает demo-данные: demo graph, models, environments, agents и deployments
+5. Альтернатива для Windows: `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`
+6. Альтернатива для Unix: `sh scripts/start-local.sh`
 
 API будет доступен по адресу `http://localhost:8080`, метрики по `/metrics`, документация по `/docs`.
 
@@ -56,16 +57,37 @@ uv run python scripts/dev_stack.py start
 - нормализует чувствительные env-переменные в JSON-формат для Pydantic settings;
 - поднимает `docker compose up -d --build`;
 - ждет готовности `http://localhost:8080/api/v1/health/ready`;
+- автоматически запускает `scripts/seed_demo_data.py` и материализует demo-реестр;
 - показывает состояние контейнеров;
 - запускает smoke-проверку API и LangGraph execution flow.
 
 Полезные варианты:
 
 - запуск без пересборки: `uv run python scripts/dev_stack.py start --no-build`
+- запуск без автоматического seed: `uv run python scripts/dev_stack.py start --skip-seed`
 - запуск без smoke: `uv run python scripts/dev_stack.py start --skip-smoke`
+- отдельное создание demo-данных: `uv run python scripts/dev_stack.py seed`
+- прямой запуск seed-скрипта: `uv run python scripts/seed_demo_data.py`
 - отдельная smoke-проверка: `uv run python scripts/dev_stack.py smoke`
 - остановка стека: `uv run python scripts/dev_stack.py stop`
 - остановка с удалением volumes: `uv run python scripts/dev_stack.py stop --volumes`
+
+### Какие demo-данные создаются автоматически
+
+После локального старта в реестре появляются:
+
+- graph: `billing-operations-graph`
+- graph: `validator-enabled-graph`
+- model: `internal-llm-gateway`
+- model: `internal-analyst-gateway`
+- environment: `dev`
+- environment: `prod`
+- agent: `billing-ops-agent`
+- agent: `support-triage-agent`
+- agent: `deployment-review-agent`
+- deployment: три демонстрационные конфигурации для `dev` и `prod`
+
+Скрипт `scripts/seed_demo_data.py` идемпотентен: повторный запуск не создает дубликаты, а переиспользует уже материализованные сущности.
 
 ### Локальная диагностика Kafka
 

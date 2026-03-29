@@ -42,11 +42,13 @@ def get_monitoring_queries() -> MonitoringQueryService:
     ),
 )
 async def list_metrics(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    metric_name: str | None = Query(default=None),
-    entity_type: str | None = Query(default=None),
-    entity_id: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    metric_name: str | None = Query(default=None, description="Фильтр по имени метрики."),
+    entity_type: str | None = Query(
+        default=None, description="Фильтр по типу сущности: execution_step, model и т.п."
+    ),
+    entity_id: str | None = Query(default=None, description="Фильтр по идентификатору сущности."),
     session: AsyncSession = Depends(get_session),
     service: MonitoringQueryService = Depends(get_monitoring_queries),
 ) -> Page[MetricSampleDTO]:
@@ -72,7 +74,12 @@ async def list_metrics(
     ),
 )
 async def get_metrics_summary(
-    window_minutes: int = Query(default=60, ge=5, le=1440),
+    window_minutes: int = Query(
+        default=60,
+        ge=5,
+        le=1440,
+        description="Окно агрегации в минутах для расчета performance summary.",
+    ),
     session: AsyncSession = Depends(get_session),
     service: MonitoringQueryService = Depends(get_monitoring_queries),
 ) -> PerformanceSummary:
@@ -90,9 +97,11 @@ async def get_metrics_summary(
     ),
 )
 async def list_costs(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    environment_id: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    environment_id: str | None = Query(
+        default=None, description="Фильтр по окружению, например dev, stage или prod."
+    ),
     session: AsyncSession = Depends(get_session),
     service: MonitoringQueryService = Depends(get_monitoring_queries),
 ) -> Page[CostRecordDTO]:
@@ -113,9 +122,11 @@ async def list_costs(
     ),
 )
 async def list_anomalies(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    severity: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    severity: str | None = Query(
+        default=None, description="Фильтр по severity: info, warning, critical."
+    ),
     session: AsyncSession = Depends(get_session),
     service: MonitoringQueryService = Depends(get_monitoring_queries),
 ) -> Page[AnomalyReportDTO]:
@@ -133,9 +144,11 @@ async def list_anomalies(
     ),
 )
 async def list_drift(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    severity: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    severity: str | None = Query(
+        default=None, description="Фильтр по severity: info, warning, critical."
+    ),
     session: AsyncSession = Depends(get_session),
     service: MonitoringQueryService = Depends(get_monitoring_queries),
 ) -> Page[DriftReportDTO]:

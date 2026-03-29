@@ -33,6 +33,8 @@ uv sync --extra dev
 uv run python scripts/dev_stack.py start
 ```
 
+Эта команда не только поднимает контейнеры, но и автоматически наполняет локальный реестр demo-данными. После старта в Swagger и в read API уже будут доступны demo graph, agents, models, environments и deployments.
+
 4. При необходимости используйте платформенные обертки:
 
 ```bash
@@ -69,10 +71,35 @@ uv run python scripts/dev_stack.py start
 Ключевые режимы:
 
 - `uv run python scripts/dev_stack.py start --no-build` поднимает стек без пересборки образов
+- `uv run python scripts/dev_stack.py start --skip-seed` поднимает стек, но не создает demo-данные
 - `uv run python scripts/dev_stack.py start --skip-smoke` поднимает стек и пропускает smoke-проверку
+- `uv run python scripts/dev_stack.py seed` отдельно создает или восстанавливает demo-данные
+- `uv run python scripts/seed_demo_data.py` напрямую запускает идемпотентный seed-скрипт
 - `uv run python scripts/dev_stack.py smoke` прогоняет только smoke-проверку уже поднятого окружения
 - `uv run python scripts/dev_stack.py stop` останавливает локальный стек
 - `uv run python scripts/dev_stack.py stop --volumes` останавливает стек и удаляет volumes
+
+### Какие demo-данные создает локальный seed
+
+Локальный seed нужен для двух задач:
+
+- чтобы Swagger и read API были полезны сразу после первого запуска;
+- чтобы у команды был стабильный набор сущностей для smoke, демонстраций и ручной проверки сценариев.
+
+Скрипт создает и поддерживает в актуальном состоянии следующие сущности:
+
+- `billing-operations-graph`
+- `validator-enabled-graph`
+- `internal-llm-gateway`
+- `internal-analyst-gateway`
+- `dev`
+- `prod`
+- `billing-ops-agent`
+- `support-triage-agent`
+- `deployment-review-agent`
+- три demo deployment-конфигурации, привязанные к этим агентам, моделям и окружениям
+
+Скрипт [scripts/seed_demo_data.py](d:/p/FastAPI/FastAPI_Layers/scripts/seed_demo_data.py) идемпотентен. Если demo-сущность уже существует, повторный запуск использует ее повторно и не создает дубль.
 
 ### Локальная разработка приложения поверх контейнерной инфраструктуры
 

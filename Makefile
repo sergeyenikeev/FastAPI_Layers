@@ -1,7 +1,7 @@
 UV ?= uv
 APP_MODULE ?= app.main:app
 
-.PHONY: install dev lint format typecheck test run worker migrations-upgrade migrations-revision docs serve-docs compose-up compose-down bootstrap-local smoke-local stop-local kafka-topics kafka-groups kafka-lag kafka-dlq kafka-peek-executions kafka-peek-steps
+.PHONY: install dev lint format typecheck test run worker migrations-upgrade migrations-revision docs serve-docs compose-up compose-down bootstrap-local seed-demo smoke-local stop-local kafka-topics kafka-groups kafka-lag kafka-dlq kafka-peek-executions kafka-peek-steps
 
 install:
 	$(UV) sync --extra dev
@@ -48,6 +48,9 @@ compose-down:
 
 bootstrap-local:
 	$(UV) run python scripts/dev_stack.py start
+
+seed-demo:
+	$(UV) run python scripts/seed_demo_data.py
 
 smoke-local:
 	$(UV) run python scripts/dev_stack.py smoke

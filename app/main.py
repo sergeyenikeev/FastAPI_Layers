@@ -15,6 +15,10 @@ from app.core.observability import setup_telemetry
 from app.db.session import engine
 from app.runtime import get_runtime
 
+# Этот модуль является главным composition root для HTTP-приложения.
+# Здесь намеренно собраны только вещи верхнего уровня:
+# создание FastAPI instance, lifecycle-хуки, middleware, telemetry и корневые
+# технические маршруты. Вся доменная логика остается в модульных пакетах.
 OPENAPI_TAGS = [
     {
         "name": "registry",
@@ -62,13 +66,20 @@ OPENAPI_TAGS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Runtime поднимает long-lived зависимости процесса: Kafka publisher,
+    # фоновые сервисы, telemetry hooks и другие ресурсы, которые нельзя
+    # инициализировать лениво на каждый запрос.
     runtime = get_runtime()
     await runtime.startup()
     yield
+    # Shutdown симметрично освобождает ресурсы, чтобы контейнер корректно
+    # завершался в Kubernetes и не терял сообщения при остановке.
     await runtime.shutdown()
 
 
 def create_app() -> FastAPI:
+    # Settings читаются один раз при сборке приложения и далее используются
+    # как единый источник конфигурации для API-префикса, telemetry и runtime.
     settings = get_settings()
     app = FastAPI(
         title="Workflow Operations Platform",
@@ -84,10 +95,27 @@ def create_app() -> FastAPI:
         openapi_tags=OPENAPI_TAGS,
         lifespan=lifespan,
     )
+
+    # Correlation middleware ставится раньше остальных прикладных слоев,
+    # чтобы каждый входящий запрос сразу получил correlation_id и trace-контекст.
+    # Это нужно и для логов, и для Kafka events, и для audit trail.
     app.add_middleware(CorrelationMiddleware)
+
+    # Rate limit пока реализован как stub: он резервирует архитектурное место
+    # для будущего ограничения трафика, но уже сегодня фиксирует единый вход
+    # для политики защиты API.
     app.add_middleware(RateLimitStubMiddleware)
+
+    # Централизованные обработчики ошибок гарантируют единый JSON-формат
+    # ответов и не позволяют различным модулям разъезжаться по error contract.
     install_error_handlers(app)
+
+    # Telemetry подключается после создания приложения, но до регистрации роутов.
+    # Так все endpoints и DB-вызовы автоматически попадают в tracing/metrics.
     setup_telemetry(app, engine, settings)
+
+    # Маршруты собираются отдельной фабрикой, чтобы app/main.py не разрастался
+    # и не знал о внутренних деталях registry/orchestration/monitoring модулей.
     app.include_router(build_api_router(), prefix=settings.api_v1_prefix)
 
     @app.get(
@@ -103,13 +131,19 @@ def create_app() -> FastAPI:
         ),
     )
     async def metrics() -> Response:
+        # Этот endpoint нужен именно для scrape со стороны Prometheus.
+        # Он отдает runtime-метрики процесса, а не бизнес-данные из read-side.
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, str]:
+        # Корневой маршрут не документируется в OpenAPI и используется как
+        # минимальная техническая точка проверки того, что процесс вообще жив.
         return {"service": settings.app_name, "status": "ok"}
 
     return app
 
 
+# Экземпляр приложения создается на импорт модуля, потому что именно этот
+# объект ожидают uvicorn/gunicorn и тестовая инфраструктура FastAPI.
 app = create_app()

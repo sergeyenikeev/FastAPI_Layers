@@ -77,9 +77,9 @@ async def create_agent(
     ),
 )
 async def list_agents(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    q: str | None = Query(default=None, description="Поисковая строка по имени и описанию."),
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[AgentDTO]:
@@ -172,9 +172,9 @@ async def create_model(
     ),
 )
 async def list_models(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    q: str | None = Query(default=None, description="Поисковая строка по модели или провайдеру."),
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[ModelEndpointDTO]:
@@ -266,9 +266,9 @@ async def create_graph(
     ),
 )
 async def list_graphs(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    q: str | None = Query(default=None, description="Поисковая строка по графам выполнения."),
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[GraphDefinitionDTO]:
@@ -359,9 +359,11 @@ async def create_deployment(
     ),
 )
 async def list_deployments(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    q: str | None = Query(
+        default=None, description="Поиск по deployment-ам и связанным сущностям."
+    ),
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[DeploymentDTO]:
@@ -452,9 +454,9 @@ async def create_tool(
     ),
 )
 async def list_tools(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    q: str | None = Query(default=None, description="Поисковая строка по инструментам."),
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[ToolDefinitionDTO]:
@@ -543,9 +545,9 @@ async def create_environment(
     ),
 )
 async def list_environments(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    q: str | None = Query(default=None, description="Поисковая строка по окружениям."),
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[EnvironmentDTO]:

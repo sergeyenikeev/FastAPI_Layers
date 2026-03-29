@@ -19,18 +19,20 @@ class ListParams(BaseModel):
 
 
 class Page[T](APIModel):
-    items: list[T]
-    total: int
-    page: int
-    page_size: int
+    items: list[T] = Field(description="Элементы текущей страницы.")
+    total: int = Field(description="Общее число элементов по запросу.")
+    page: int = Field(description="Номер текущей страницы.")
+    page_size: int = Field(description="Размер страницы.")
 
 
 class CommandAccepted(APIModel):
-    entity_id: str
-    event_id: str
-    event_type: str
-    status: str = "accepted"
-    correlation_id: str
+    entity_id: str = Field(description="Идентификатор сущности, для которой принята команда.")
+    event_id: str = Field(description="Идентификатор опубликованного доменного события.")
+    event_type: str = Field(description="Тип опубликованного события.")
+    status: str = Field(default="accepted", description="Статус приема команды API.")
+    correlation_id: str = Field(
+        description="Correlation ID для трассировки команды через систему."
+    )
 
 
 class AgentDTO(APIModel):
@@ -126,37 +128,49 @@ class EnvironmentDTO(APIModel):
 
 
 class ExecutionStepDTO(APIModel):
-    id: str
-    execution_run_id: str
-    agent_name: str
-    step_name: str
-    status: str
-    input_payload: dict[str, Any]
-    output_payload: dict[str, Any] | None = None
-    duration_ms: float | None = None
-    token_usage_total: int
-    started_at: datetime
-    finished_at: datetime | None = None
-    trace_id: str
-    created_at: datetime
-    updated_at: datetime
+    id: str = Field(description="Идентификатор шага выполнения.")
+    execution_run_id: str = Field(description="Идентификатор родительского execution run.")
+    agent_name: str = Field(description="Имя агента, выполнившего шаг.")
+    step_name: str = Field(description="Логическое имя шага в workflow.")
+    status: str = Field(description="Статус шага выполнения.")
+    input_payload: dict[str, Any] = Field(description="Входные данные шага.")
+    output_payload: dict[str, Any] | None = Field(
+        default=None, description="Результат шага после выполнения."
+    )
+    duration_ms: float | None = Field(
+        default=None, description="Длительность шага в миллисекундах."
+    )
+    token_usage_total: int = Field(description="Суммарный расход токенов на шаге.")
+    started_at: datetime = Field(description="Время начала шага.")
+    finished_at: datetime | None = Field(default=None, description="Время завершения шага.")
+    trace_id: str = Field(description="Trace ID, связанный с шагом.")
+    created_at: datetime = Field(description="Время создания записи в read model.")
+    updated_at: datetime = Field(description="Время последнего обновления записи.")
 
 
 class ExecutionRunDTO(APIModel):
-    id: str
+    id: str = Field(description="Идентификатор запуска выполнения.")
     deployment_id: str | None = None
     graph_definition_id: str | None = None
-    status: str
-    input_payload: dict[str, Any]
-    output_payload: dict[str, Any] | None = None
-    started_at: datetime
-    finished_at: datetime | None = None
-    correlation_id: str
-    trace_id: str
-    error_message: str | None = None
-    created_at: datetime
-    updated_at: datetime
-    steps: list[ExecutionStepDTO] = Field(default_factory=list)
+    status: str = Field(description="Статус выполнения: running, succeeded или failed.")
+    input_payload: dict[str, Any] = Field(description="Исходный входной payload выполнения.")
+    output_payload: dict[str, Any] | None = Field(
+        default=None, description="Итоговый payload результата выполнения."
+    )
+    started_at: datetime = Field(description="Время старта выполнения.")
+    finished_at: datetime | None = Field(default=None, description="Время завершения выполнения.")
+    correlation_id: str = Field(description="Correlation ID выполнения.")
+    trace_id: str = Field(description="Trace ID выполнения.")
+    error_message: str | None = Field(
+        default=None,
+        description="Текст ошибки, если выполнение завершилось неуспешно.",
+    )
+    created_at: datetime = Field(description="Время создания записи в read model.")
+    updated_at: datetime = Field(description="Время последнего обновления записи.")
+    steps: list[ExecutionStepDTO] = Field(
+        default_factory=list,
+        description="Материализованный список шагов выполнения в порядке их обработки.",
+    )
 
 
 class HealthCheckDTO(APIModel):

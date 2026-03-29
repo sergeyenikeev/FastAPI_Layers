@@ -29,9 +29,11 @@ def get_audit_queries() -> AuditQueryService:
     ),
 )
 async def list_audit_events(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    entity_type: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1, description="Номер страницы результата."),
+    page_size: int = Query(default=20, ge=1, le=100, description="Размер страницы."),
+    entity_type: str | None = Query(
+        default=None, description="Фильтр по типу сущности, например execution_run или deployment."
+    ),
     session: AsyncSession = Depends(get_session),
     service: AuditQueryService = Depends(get_audit_queries),
 ) -> Page[AuditEventDTO]:
