@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.base import Base
+from app.db.base import Base, utc_now
 from app.db.models import (
     Agent,
     AgentVersion,
@@ -144,6 +144,12 @@ class ProjectionService:
         payload = dict(event.payload["execution_run"])
         payload["started_at"] = parse_datetime(payload.get("started_at"))
         payload["finished_at"] = parse_datetime(payload.get("finished_at"))
+        payload["deployment_id"] = await self._resolve_fk_or_none(
+            session, Deployment, payload.get("deployment_id")
+        )
+        payload["graph_definition_id"] = await self._resolve_fk_or_none(
+            session, GraphDefinition, payload.get("graph_definition_id")
+        )
         await self._upsert(session, ExecutionRun, payload)
 
     async def _handle_execution_finished(self, session: AsyncSession, event: EventEnvelope) -> None:
@@ -166,6 +172,14 @@ class ProjectionService:
         payload = dict(event.payload["execution_step"])
         payload["started_at"] = parse_datetime(payload.get("started_at"))
         payload["finished_at"] = parse_datetime(payload.get("finished_at"))
+        await self._ensure_execution_run_placeholder(
+            session=session,
+            execution_run_id=payload["execution_run_id"],
+            correlation_id=event.correlation_id,
+            trace_id=str(payload.get("trace_id", event.trace_id)),
+            started_at=payload.get("started_at"),
+            input_payload={},
+        )
         await self._upsert(session, ExecutionStep, payload)
 
     async def _handle_health_recorded(self, session: AsyncSession, event: EventEnvelope) -> None:
@@ -184,6 +198,9 @@ class ProjectionService:
         payload = dict(event.payload)
         payload["id"] = event.event_id
         payload["occurred_at"] = parse_datetime(payload["occurred_at"])
+        execution_run_id = payload.get("execution_run_id")
+        if execution_run_id and await session.get(ExecutionRun, execution_run_id) is None:
+            payload["execution_run_id"] = None
         await self._upsert(session, CostRecord, payload)
 
     async def _handle_anomaly_detected(self, session: AsyncSession, event: EventEnvelope) -> None:
@@ -273,3 +290,43 @@ class ProjectionService:
             return
         for field, value in payload.items():
             setattr(entity, field, value)
+
+    async def _resolve_fk_or_none(
+        self,
+        session: AsyncSession,
+        model_cls: type[Base],
+        entity_id: str | None,
+    ) -> str | None:
+        if not entity_id:
+            return None
+        if await session.get(model_cls, entity_id) is None:
+            return None
+        return entity_id
+
+    async def _ensure_execution_run_placeholder(
+        self,
+        *,
+        session: AsyncSession,
+        execution_run_id: str,
+        correlation_id: str,
+        trace_id: str,
+        started_at: datetime | None,
+        input_payload: dict[str, Any],
+    ) -> None:
+        if await session.get(ExecutionRun, execution_run_id) is not None:
+            return
+        session.add(
+            ExecutionRun(
+                id=execution_run_id,
+                deployment_id=None,
+                graph_definition_id=None,
+                status="running",
+                input_payload=input_payload,
+                output_payload=None,
+                started_at=started_at or utc_now(),
+                finished_at=None,
+                correlation_id=correlation_id,
+                trace_id=trace_id,
+                error_message=None,
+            )
+        )
