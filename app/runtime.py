@@ -27,6 +27,10 @@ from app.projections.projector import ProjectionService
 
 
 class AppRuntime:
+    # AppRuntime играет роль application container для всего процесса API.
+    # Здесь один раз собираются сервисы, которые затем переиспользуются всеми
+    # request handlers. Это снижает связность API-слоя с деталями wiring и
+    # упрощает перенос модулей в отдельные сервисы в будущем.
     def __init__(
         self,
         settings: Settings,
@@ -39,29 +43,53 @@ class AppRuntime:
         self.settings = settings
         self.session_factory = session_factory
         self.engine = engine_override
+
         # Tests use an in-memory publisher to keep the same application wiring without
         # requiring a real Kafka broker. Production and local dev use the real publisher.
         self.publisher: PublisherProtocol = (
             InMemoryPublisher() if settings.app_env == "test" else EventPublisher(settings)
         )
+
         # AppRuntime is the composition root: modules receive ready-to-use collaborators
         # and stay isolated from configuration details and object construction concerns.
+        # Такой подход упрощает тестирование: модульные сервисы не знают, как
+        # именно создается publisher, engine или gateway, и потому легче
+        # заменяются на doubles и test fixtures.
         self.audit_service = AuditService(self.publisher)
         self.audit_queries = AuditQueryService()
         self.registry_commands = RegistryCommandService(self.publisher, self.audit_service)
         self.registry_queries = RegistryQueryService()
+
+        # Gateway инкапсулирует вызов внешнего model/inference слоя. Runtime
+        # держит его здесь как singleton процесса, чтобы orchestration-сервис
+        # зависел только от интерфейса, а не от способа интеграции.
         self.model_gateway = ModelGateway()
         self.execution_queries = ExecutionQueryService()
+
+        # ExecutionCommandService получает spawn_task, а не прямой event loop.
+        # Это сознательно связывает фоновый запуск workflow с runtime-контейнером,
+        # который умеет потом корректно остановить эти задачи.
         self.execution_commands = ExecutionCommandService(
             self.publisher,
             self.audit_service,
             self.model_gateway,
             self.spawn_task,
         )
+
+        # Health и monitoring сервисы собираются на уровне runtime, потому что
+        # они нужны сразу нескольким маршрутам и воркерам, а их зависимости
+        # пересекают границы модулей: DB, publisher, detectors и settings.
         self.health_service = HealthService(settings, self.engine, self.publisher)
         self.monitoring_queries = MonitoringQueryService()
         self.alert_queries = AlertQueryService()
+
+        # ProjectionService материализует read-side из event stream.
+        # Он не должен создаваться заново на каждый запрос, потому что
+        # projection handlers являются процессными зависимостями воркеров.
         self.projector = ProjectionService()
+
+        # Детекторы собираются через factory-функции, чтобы набор правил можно
+        # было централизованно расширять без переписывания runtime wiring.
         self.anomaly_detection_service = AnomalyDetectionService(
             build_default_anomaly_detectors(
                 latency_zscore=settings.latency_spike_zscore,
@@ -70,6 +98,9 @@ class AppRuntime:
         )
         self.drift_detection_service = DriftDetectionService(build_default_drift_detectors())
         self.alerting_service = AlertingService(self.publisher, settings)
+
+        # Здесь хранятся detached background tasks, которые были запущены из
+        # HTTP-контекста, но продолжают работать уже после возврата ответа API.
         self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def startup(self) -> None:
@@ -91,10 +122,18 @@ class AppRuntime:
         # still track tasks here to support graceful shutdown and avoid silent leaks.
         task = asyncio.create_task(coro)
         self._background_tasks.add(task)
+
+        # Callback удаляет завершенную задачу из внутреннего набора, чтобы
+        # runtime не копил "мертвые" ссылки и набор отражал только реально
+        # живущие фоновые корутины.
         task.add_done_callback(lambda completed: self._background_tasks.discard(completed))
         return task
 
 
 @lru_cache(maxsize=1)
 def get_runtime() -> AppRuntime:
+    # Runtime кэшируется как singleton на процесс. Это важно для согласованности:
+    # один publisher, один набор сервисов и единый жизненный цикл на весь API.
+    # Без этого разные import path могли бы случайно создать независимые runtime
+    # экземпляры с дублирующими Kafka-подключениями и несогласованным shutdown.
     return AppRuntime(get_settings())
