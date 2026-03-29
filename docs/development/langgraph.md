@@ -238,6 +238,21 @@ def _route_after_tool_runner(self, state: ExecutionState) -> str:
 - напрямую в `ExecutionState["validation_required"]`;
 - через `input_payload["require_validation"]`, если ветка должна включаться входным запросом.
 
+Пример публичного API-запроса для включения ветки:
+
+```json
+{
+  "graph_definition_id": "graph-validator-demo",
+  "input_payload": {
+    "objective": "Validate rollout plan for a degraded workflow",
+    "require_validation": true
+  }
+}
+```
+
+Готовый пример также лежит в
+[examples/workflow_execution_with_validator.json](d:/p/FastAPI/FastAPI_Layers/examples/workflow_execution_with_validator.json).
+
 При добавлении ветвлений важно проверить:
 
 - все ли ветки доходят до `END`;

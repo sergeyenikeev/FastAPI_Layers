@@ -1,0 +1,16 @@
+{
+  "graph_definition_id": "graph-validator-demo",
+  "input_payload": {
+    "objective": "Validate rollout plan for a degraded workflow",
+    "require_validation": true,
+    "context": {
+      "environment": "prod",
+      "service": "billing-workflow",
+      "time_window": "last_15m"
+    }
+  },
+  "metadata": {
+    "requested_by": "platform-ops",
+    "ticket": "INC-2091"
+  }
+}

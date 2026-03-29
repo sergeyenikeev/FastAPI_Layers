@@ -72,6 +72,33 @@ helm upgrade --install workflow-platform helm/workflow-platform \
 
 Пример входного запроса находится в `examples/workflow_execution.json`.
 
+### Пример запуска с веткой `validator`
+
+Если нужен дополнительный шаг проверки между `tool_runner` и `reviewer`, передайте
+`require_validation: true` во входном payload:
+
+```json
+{
+  "graph_definition_id": "graph-validator-demo",
+  "input_payload": {
+    "objective": "Validate rollout plan for a degraded workflow",
+    "require_validation": true,
+    "context": {
+      "environment": "prod",
+      "service": "billing-workflow",
+      "time_window": "last_15m"
+    }
+  },
+  "metadata": {
+    "requested_by": "platform-ops",
+    "ticket": "INC-2091"
+  }
+}
+```
+
+В этом режиме граф пройдет путь `planner -> tool_runner -> validator -> reviewer`, а
+в итоговом `output_payload` появится поле `validation_summary`.
+
 ## Структура репозитория
 
 - `app/` код приложения

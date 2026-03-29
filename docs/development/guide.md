@@ -151,6 +151,35 @@ uv run mkdocs build
 
 Подробное практическое руководство вынесено в [docs/development/langgraph.md](d:/p/FastAPI/FastAPI_Layers/docs/development/langgraph.md).
 
+### Как включить ветку `validator`
+
+По умолчанию workflow идет по базовому маршруту:
+
+- `planner -> tool_runner -> reviewer`
+
+Чтобы включить дополнительный шаг проверки, передайте во входной payload флаг:
+
+```json
+{
+  "graph_definition_id": "graph-validator-demo",
+  "input_payload": {
+    "objective": "Validate rollout plan for a degraded workflow",
+    "require_validation": true
+  }
+}
+```
+
+Тогда `LangGraph` выберет маршрут:
+
+- `planner -> tool_runner -> validator -> reviewer`
+
+Что важно проверить после включения или изменения этой ветки:
+
+- `output_payload.validation_summary` появляется в `execution.finished`;
+- read API возвращает шаг `validator` в списке `steps`;
+- Kafka публикует дополнительный `step.completed` для `validator`;
+- интеграционные тесты на API и Kafka остаются зелеными.
+
 ## Архитектурные правила разработки
 
 ### CQRS
