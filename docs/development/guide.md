@@ -378,6 +378,8 @@ uv run python scripts/kafka_debug.py all
 - `uv run python scripts/kafka_debug.py dlq` показывает только DLQ-topics
 - `uv run python scripts/kafka_debug.py describe-group projection-consumers` помогает искать застрявшую read-side обработку
 - `uv run python scripts/kafka_debug.py describe-topic agent.executions` помогает проверить partitions и offsets конкретного topic
+- `uv run python scripts/kafka_debug.py peek-topic agent.executions --max-messages 1 --from-beginning` показывает реальный event envelope
+- `uv run python scripts/kafka_debug.py peek-dlq agent.steps.dlq --max-messages 1 --from-beginning` помогает быстро посмотреть ошибочное сообщение из DLQ
 
 ### Проверка проекций
 

@@ -29,8 +29,9 @@
 
 1. Выполните `uv run python scripts/kafka_debug.py dlq`
 2. Если нужен контекст по конкретному topic, выполните `uv run python scripts/kafka_debug.py describe-topic agent.executions.dlq`
-3. Сопоставьте рост DLQ с логами соответствующего worker-процесса
-4. Проверьте, не изменился ли event payload без синхронного обновления projection или consumer handler
+3. Чтобы увидеть само сообщение, выполните `uv run python scripts/kafka_debug.py peek-dlq agent.executions.dlq --max-messages 1 --from-beginning`
+4. Сопоставьте рост DLQ с логами соответствующего worker-процесса
+5. Проверьте, не изменился ли event payload без синхронного обновления projection или consumer handler
 
 ## Шторм алертов по дрейфу
 

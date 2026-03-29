@@ -1,7 +1,7 @@
 UV ?= uv
 APP_MODULE ?= app.main:app
 
-.PHONY: install dev lint format typecheck test run worker migrations-upgrade migrations-revision docs serve-docs compose-up compose-down bootstrap-local smoke-local stop-local kafka-topics kafka-groups kafka-lag kafka-dlq
+.PHONY: install dev lint format typecheck test run worker migrations-upgrade migrations-revision docs serve-docs compose-up compose-down bootstrap-local smoke-local stop-local kafka-topics kafka-groups kafka-lag kafka-dlq kafka-peek-executions kafka-peek-steps
 
 install:
 	$(UV) sync --extra dev
@@ -66,3 +66,9 @@ kafka-lag:
 
 kafka-dlq:
 	$(UV) run python scripts/kafka_debug.py dlq
+
+kafka-peek-executions:
+	$(UV) run python scripts/kafka_debug.py peek-topic agent.executions --max-messages 1 --from-beginning
+
+kafka-peek-steps:
+	$(UV) run python scripts/kafka_debug.py peek-topic agent.steps --max-messages 1 --from-beginning
