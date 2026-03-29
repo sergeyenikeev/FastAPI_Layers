@@ -5,8 +5,16 @@
 ```bash
 cp .env.example .env
 uv sync --extra dev
-docker compose up --build
+uv run python scripts/dev_stack.py start
 ```
+
+Варианты локального запуска:
+
+- `uv run python scripts/dev_stack.py start --no-build` поднимает стек без пересборки образов
+- `uv run python scripts/dev_stack.py start --skip-smoke` пропускает smoke-проверку
+- `uv run python scripts/dev_stack.py smoke` прогоняет только smoke-проверку
+- `uv run python scripts/dev_stack.py stop` останавливает стек
+- `uv run python scripts/dev_stack.py stop --volumes` останавливает стек и удаляет volumes
 
 ## Kubernetes
 

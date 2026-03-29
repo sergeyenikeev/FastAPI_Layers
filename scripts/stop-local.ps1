@@ -5,10 +5,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$composeArgs = @("compose", "down")
+$scriptArgs = @("run", "python", "scripts/dev_stack.py", "stop")
 if ($Volumes) {
-    $composeArgs += "-v"
+    $scriptArgs += "--volumes"
 }
 
-docker @composeArgs
-Write-Host "Локальный стек остановлен."
+uv @scriptArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "uv run scripts/dev_stack.py stop завершился с кодом $LASTEXITCODE"
+}

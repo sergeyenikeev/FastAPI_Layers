@@ -27,19 +27,29 @@ cp .env.example .env
 uv sync --extra dev
 ```
 
-3. Поднимите инфраструктуру:
+3. Поднимите инфраструктуру и сервисы рекомендуемой командой:
 
 ```bash
-docker compose up --build
+uv run python scripts/dev_stack.py start
 ```
 
-4. Если миграции не применились автоматически, выполните:
+4. При необходимости используйте платформенные обертки:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1
+```
+
+```bash
+sh scripts/start-local.sh
+```
+
+5. Если миграции не применились автоматически, выполните:
 
 ```bash
 make migrations-upgrade
 ```
 
-5. Проверьте, что приложение отвечает:
+6. Проверьте, что приложение отвечает:
 
 - API: `http://localhost:8080`
 - OpenAPI: `http://localhost:8080/docs`
@@ -53,8 +63,16 @@ make migrations-upgrade
 Используется для сквозной проверки API, фоновых воркеров, Kafka-потоков и проекций.
 
 ```bash
-docker compose up --build
+uv run python scripts/dev_stack.py start
 ```
+
+Ключевые режимы:
+
+- `uv run python scripts/dev_stack.py start --no-build` поднимает стек без пересборки образов
+- `uv run python scripts/dev_stack.py start --skip-smoke` поднимает стек и пропускает smoke-проверку
+- `uv run python scripts/dev_stack.py smoke` прогоняет только smoke-проверку уже поднятого окружения
+- `uv run python scripts/dev_stack.py stop` останавливает локальный стек
+- `uv run python scripts/dev_stack.py stop --volumes` останавливает стек и удаляет volumes
 
 ### Локальная разработка приложения поверх контейнерной инфраструктуры
 
@@ -96,11 +114,13 @@ uv run python -m app.worker
 - `uv sync --extra dev` создает и синхронизирует виртуальное окружение проекта
 - `uv run ...` запускает команды внутри проектного окружения
 - `uv lock` обновляет lock-файл зависимостей
+- `uv run python scripts/dev_stack.py ...` является рекомендуемой точкой входа для локального Docker lifecycle
 
 Рекомендуемый базовый цикл:
 
 ```bash
 uv sync --extra dev
+uv run python scripts/dev_stack.py start --no-build --skip-smoke
 uv run pytest
 uv run mypy app tests
 uv run mkdocs build

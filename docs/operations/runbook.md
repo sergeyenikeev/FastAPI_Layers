@@ -1,5 +1,16 @@
 # Операционный регламент
 
+## Локальный bootstrap для диагностики
+
+Если нужно быстро поднять воспроизводимое локальное окружение для диагностики:
+
+1. Выполните `uv run python scripts/dev_stack.py start`
+2. Дождитесь проверки `/api/v1/health/ready`
+3. Проверьте результат smoke-сценария
+4. При повторном запуске без пересборки используйте `uv run python scripts/dev_stack.py start --no-build`
+5. Для отдельной перепроверки API используйте `uv run python scripts/dev_stack.py smoke`
+6. Для остановки окружения используйте `uv run python scripts/dev_stack.py stop`
+
 ## API не готово к работе
 
 1. Проверьте `/api/v1/health/ready`

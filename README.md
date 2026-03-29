@@ -35,10 +35,37 @@
 
 1. Скопируйте `.env.example` в `.env`
 2. Установите зависимости через `uv`: `uv sync --extra dev`
-3. Поднимите инфраструктуру и сервисы: `docker compose up --build`
-4. При необходимости примените миграции: `uv run alembic upgrade head`
+3. Рекомендуемый единый запуск: `uv run python scripts/dev_stack.py start`
+4. Альтернатива для Windows: `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`
+5. Альтернатива для Unix: `sh scripts/start-local.sh`
 
 API будет доступен по адресу `http://localhost:8080`, метрики по `/metrics`, документация по `/docs`.
+
+### Единый bootstrap через uv
+
+Для локальной разработки рекомендуется использовать единый bootstrap-скрипт:
+
+```bash
+uv run python scripts/dev_stack.py start
+```
+
+Что он делает:
+
+- проверяет доступность Docker и `docker compose`;
+- создает `.env` из `.env.example`, если файл еще не создан;
+- нормализует чувствительные env-переменные в JSON-формат для Pydantic settings;
+- поднимает `docker compose up -d --build`;
+- ждет готовности `http://localhost:8080/api/v1/health/ready`;
+- показывает состояние контейнеров;
+- запускает smoke-проверку API и LangGraph execution flow.
+
+Полезные варианты:
+
+- запуск без пересборки: `uv run python scripts/dev_stack.py start --no-build`
+- запуск без smoke: `uv run python scripts/dev_stack.py start --skip-smoke`
+- отдельная smoke-проверка: `uv run python scripts/dev_stack.py smoke`
+- остановка стека: `uv run python scripts/dev_stack.py stop`
+- остановка с удалением volumes: `uv run python scripts/dev_stack.py stop --volumes`
 
 ## Запуск тестов
 

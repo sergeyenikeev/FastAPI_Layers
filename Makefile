@@ -1,7 +1,7 @@
 UV ?= uv
 APP_MODULE ?= app.main:app
 
-.PHONY: install dev lint format typecheck test run worker migrations-upgrade migrations-revision docs serve-docs compose-up compose-down
+.PHONY: install dev lint format typecheck test run worker migrations-upgrade migrations-revision docs serve-docs compose-up compose-down bootstrap-local smoke-local stop-local
 
 install:
 	$(UV) sync --extra dev
@@ -45,3 +45,12 @@ compose-up:
 
 compose-down:
 	docker compose down -v
+
+bootstrap-local:
+	$(UV) run python scripts/dev_stack.py start
+
+smoke-local:
+	$(UV) run python scripts/dev_stack.py smoke
+
+stop-local:
+	$(UV) run python scripts/dev_stack.py stop
