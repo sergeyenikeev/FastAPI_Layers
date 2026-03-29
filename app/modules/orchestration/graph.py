@@ -16,8 +16,10 @@ class ExecutionState(TypedDict, total=False):
     input_payload: dict[str, Any]
     objective: str
     model_context: dict[str, Any]
+    validation_required: bool
     plan: str
     tool_output: str
+    validation_summary: str
     review: str
     final_output: dict[str, Any]
 
@@ -38,10 +40,19 @@ class ExecutionWorkflow:
         graph = StateGraph(ExecutionState)
         graph.add_node("planner", self._planner)
         graph.add_node("tool_runner", self._tool_runner)
+        graph.add_node("validator", self._validator)
         graph.add_node("reviewer", self._reviewer)
         graph.add_edge(START, "planner")
         graph.add_edge("planner", "tool_runner")
-        graph.add_edge("tool_runner", "reviewer")
+        graph.add_conditional_edges(
+            "tool_runner",
+            self._route_after_tool_runner,
+            {
+                "validator": "validator",
+                "reviewer": "reviewer",
+            },
+        )
+        graph.add_edge("validator", "reviewer")
         graph.add_edge("reviewer", END)
         return graph.compile()
 
@@ -84,6 +95,10 @@ class ExecutionWorkflow:
         started = time.perf_counter()
         plan = state.get("plan", "")
         input_payload = state.get("input_payload", {})
+        validation_required = bool(
+            state.get("validation_required")
+            or input_payload.get("require_validation")
+        )
         tool_output = {
             "selected_tools": ["context-summary", "risk-scan", "cost-estimator"],
             "summary": (
@@ -104,12 +119,55 @@ class ExecutionWorkflow:
         await self.step_emitter(
             "tool_runner",
             "tool-runner-agent",
-            {"plan": plan, "context": input_payload},
+            {
+                "plan": plan,
+                "context": input_payload,
+                "validation_required": validation_required,
+            },
             tool_output,
             0,
             (time.perf_counter() - started) * 1000,
         )
-        return {"tool_output": tool_output["summary"]}
+        return {
+            "tool_output": tool_output["summary"],
+            "validation_required": validation_required,
+        }
+
+    def _route_after_tool_runner(self, state: ExecutionState) -> str:
+        if state.get("validation_required"):
+            return "validator"
+        return "reviewer"
+
+    async def _validator(self, state: ExecutionState) -> dict[str, Any]:
+        started = time.perf_counter()
+        summary = (
+            "Validation completed for prepared execution summary: "
+            f"{state.get('tool_output', '')[:120]}"
+        )
+        output = {
+            "validation_summary": summary,
+            "_telemetry": {
+                "content": "validator-local",
+                "latency_ms": (time.perf_counter() - started) * 1000,
+                "token_input": 0,
+                "token_output": 0,
+                "cost_usd": 0.0,
+                "model_name": "builtin-validator",
+                "provider": "internal",
+            },
+        }
+        await self.step_emitter(
+            "validator",
+            "validator-agent",
+            {
+                "tool_output": state.get("tool_output", ""),
+                "validation_required": state.get("validation_required", False),
+            },
+            output,
+            0,
+            (time.perf_counter() - started) * 1000,
+        )
+        return {"validation_summary": summary}
 
     async def _reviewer(self, state: ExecutionState) -> dict[str, Any]:
         started = time.perf_counter()
@@ -119,6 +177,7 @@ class ExecutionWorkflow:
             "then produce the final result.\n"
             f"Plan: {state.get('plan', '')}\n"
             f"Tool output: {state.get('tool_output', '')}\n"
+            f"Validation: {state.get('validation_summary', '')}\n"
             f"Input payload: {state.get('input_payload', {})}"
         )
         result = await self.gateway.invoke(
@@ -134,13 +193,18 @@ class ExecutionWorkflow:
                 "summary": result.content,
                 "plan": state.get("plan", ""),
                 "tool_output": state.get("tool_output", ""),
+                "validation_summary": state.get("validation_summary", ""),
             },
             "_telemetry": result.model_dump(mode="json"),
         }
         await self.step_emitter(
             "reviewer",
             "reviewer-agent",
-            {"plan": state.get("plan", ""), "tool_output": state.get("tool_output", "")},
+            {
+                "plan": state.get("plan", ""),
+                "tool_output": state.get("tool_output", ""),
+                "validation_summary": state.get("validation_summary", ""),
+            },
             output,
             result.token_input + result.token_output,
             (time.perf_counter() - started) * 1000,

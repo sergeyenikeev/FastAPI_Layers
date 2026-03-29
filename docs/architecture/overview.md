@@ -22,11 +22,21 @@ flowchart LR
     api["POST /api/v1/executions"] --> started["execution.started"]
     started --> planner["planner"]
     planner --> tool_runner["tool_runner"]
-    tool_runner --> reviewer["reviewer"]
+    tool_runner --> decision{"validation_required?"}
+    decision -- "нет" --> reviewer["reviewer"]
+    decision -- "да" --> validator["validator"]
+    validator --> reviewer
     reviewer --> finished["execution.finished"]
     finished --> projections["PostgreSQL projections"]
     projections --> read_api["GET /api/v1/executions/{id}"]
 ```
+
+У сценария есть два поддерживаемых маршрута:
+
+- базовый: `planner -> tool_runner -> reviewer`
+- расширенный: `planner -> tool_runner -> validator -> reviewer`
+
+Ветка с `validator` включается флагом `validation_required` в состоянии графа или `require_validation` во входном `input_payload`. Это позволяет расширять маршрут без изменения стандартного поведения API и уже существующих интеграций.
 
 ## Модель CQRS
 

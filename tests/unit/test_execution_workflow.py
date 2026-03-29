@@ -74,6 +74,7 @@ async def test_execution_workflow_runs_full_langgraph_chain() -> None:
     assert result["review"].startswith("processed:")
     assert result["final_output"]["plan"] == result["plan"]
     assert result["final_output"]["tool_output"] == result["tool_output"]
+    assert result["final_output"]["validation_summary"] == ""
 
     assert [item["step_name"] for item in emitted_steps] == [
         "planner",
@@ -83,3 +84,58 @@ async def test_execution_workflow_runs_full_langgraph_chain() -> None:
     assert emitted_steps[0]["agent_name"] == "planner-agent"
     assert emitted_steps[1]["agent_name"] == "tool-runner-agent"
     assert emitted_steps[2]["agent_name"] == "reviewer-agent"
+
+
+@pytest.mark.asyncio
+async def test_execution_workflow_routes_through_validator_when_flag_enabled() -> None:
+    emitted_steps: list[dict[str, Any]] = []
+
+    async def emit_step(
+        step_name: str,
+        agent_name: str,
+        input_payload: dict[str, Any],
+        output_payload: dict[str, Any],
+        token_usage_total: int,
+        duration_ms: float,
+    ) -> None:
+        emitted_steps.append(
+            {
+                "step_name": step_name,
+                "agent_name": agent_name,
+                "input_payload": input_payload,
+                "output_payload": output_payload,
+                "token_usage_total": token_usage_total,
+                "duration_ms": duration_ms,
+            }
+        )
+
+    workflow = ExecutionWorkflow(FakeGateway(), emit_step)
+    result = await workflow.invoke(
+        {
+            "execution_run_id": "run-2",
+            "graph_definition_id": "graph-1",
+            "input_payload": {
+                "objective": "Prepare validated execution summary",
+                "require_validation": True,
+            },
+            "objective": "Prepare validated execution summary",
+            "model_context": {
+                "endpoint_url": None,
+                "provider": "test-provider",
+                "model_name": "test-model",
+            },
+        }
+    )
+
+    assert result["validation_required"] is True
+    assert result["validation_summary"].startswith("Validation completed")
+    assert result["final_output"]["validation_summary"] == result["validation_summary"]
+
+    assert [item["step_name"] for item in emitted_steps] == [
+        "planner",
+        "tool_runner",
+        "validator",
+        "reviewer",
+    ]
+    assert emitted_steps[2]["agent_name"] == "validator-agent"
+    assert emitted_steps[2]["input_payload"]["validation_required"] is True

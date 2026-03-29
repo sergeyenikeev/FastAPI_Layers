@@ -19,16 +19,18 @@
 
 ## Текущий граф выполнения
 
-В проекте реализован линейный сценарий из трех узлов:
+В проекте реализован базовый сценарий из трех обязательных узлов и одной условной ветки:
 
 1. `planner`
 2. `tool_runner`
-3. `reviewer`
+3. `validator` (только если в состоянии включена валидация)
+4. `reviewer`
 
 Последовательность связей:
 
 ```text
 START -> planner -> tool_runner -> reviewer -> END
+START -> planner -> tool_runner -> validator -> reviewer -> END
 ```
 
 Каждый узел получает текущее состояние, возвращает частичное обновление состояния и при необходимости публикует телеметрию шага.
@@ -39,7 +41,10 @@ START -> planner -> tool_runner -> reviewer -> END
 flowchart LR
     start(["START"]) --> planner["planner"]
     planner --> tool_runner["tool_runner"]
-    tool_runner --> reviewer["reviewer"]
+    tool_runner --> decision{"validation_required?"}
+    decision -- "нет" --> reviewer["reviewer"]
+    decision -- "да" --> validator["validator"]
+    validator --> reviewer
     reviewer --> finish(["END"])
 ```
 
@@ -57,6 +62,8 @@ flowchart LR
 - `model_context`
 - `plan`
 - `tool_output`
+- `validation_required`
+- `validation_summary`
 - `review`
 - `final_output`
 
@@ -80,10 +87,16 @@ flowchart LR
 graph = StateGraph(ExecutionState)
 graph.add_node("planner", self._planner)
 graph.add_node("tool_runner", self._tool_runner)
+graph.add_node("validator", self._validator)
 graph.add_node("reviewer", self._reviewer)
 graph.add_edge(START, "planner")
 graph.add_edge("planner", "tool_runner")
-graph.add_edge("tool_runner", "reviewer")
+graph.add_conditional_edges(
+    "tool_runner",
+    self._route_after_tool_runner,
+    {"validator": "validator", "reviewer": "reviewer"},
+)
+graph.add_edge("validator", "reviewer")
 graph.add_edge("reviewer", END)
 compiled = graph.compile()
 ```
@@ -127,8 +140,22 @@ compiled = graph.compile()
 Задача узла:
 
 - получить `plan` и `tool_output`;
+- учесть `validation_summary`, если был пройден `validator`;
 - сформировать итоговую валидацию;
 - вернуть `review` и `final_output`.
+
+### `validator`
+
+Задача узла:
+
+- принять результат `tool_runner`;
+- выполнить дополнительную локальную проверку;
+- вернуть `validation_summary`, который затем попадет в `reviewer`.
+
+Особенность:
+
+- шаг вызывается только при `validation_required=True`;
+- по умолчанию текущий сценарий остается линейным и полностью совместимым с прежним маршрутом.
 
 ## Взаимодействие с сервисом оркестрации
 
@@ -196,6 +223,20 @@ graph.add_edge("validator", "reviewer")
 - выделяйте логику выбора ветки в отдельную функцию;
 - делайте условие прозрачным и тестируемым;
 - не прячьте принятие решения в случайные побочные эффекты внутри шага.
+
+Текущий проект использует именно этот подход после `tool_runner`:
+
+```python
+def _route_after_tool_runner(self, state: ExecutionState) -> str:
+    if state.get("validation_required"):
+        return "validator"
+    return "reviewer"
+```
+
+Флаг может приходить:
+
+- напрямую в `ExecutionState["validation_required"]`;
+- через `input_payload["require_validation"]`, если ветка должна включаться входным запросом.
 
 При добавлении ветвлений важно проверить:
 
@@ -289,11 +330,24 @@ uv run mkdocs build
 - публикацию `step.completed`;
 - завершение `execution.finished`;
 - корректную материализацию `execution_runs` и `execution_steps`.
+- последовательность Kafka-событий для шагов и метрик.
 
 Типовые файлы:
 
 - [tests/integration/test_api_flow.py](d:/p/FastAPI/FastAPI_Layers/tests/integration/test_api_flow.py)
 - [tests/integration/test_kafka_flow.py](d:/p/FastAPI/FastAPI_Layers/tests/integration/test_kafka_flow.py)
+
+В частности, Kafka-интеграционный тест должен подтверждать:
+
+- публикацию `execution.started`;
+- публикацию трех или четырех `step.completed` в зависимости от выбранной ветки;
+- наличие системных метрик шага;
+- публикацию `execution.finished`.
+
+Дополнительно unit-тест должен отдельно покрывать условную ветку:
+
+- базовый проход без `validator`;
+- проход с `validator`, когда `validation_required=True`.
 
 ## Частые ошибки при работе с LangGraph
 
