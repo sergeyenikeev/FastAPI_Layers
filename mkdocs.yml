@@ -5,8 +5,12 @@ theme:
 nav:
   - Обзор: index.md
   - API: api.md
+  - Бизнес:
+      - Отраслевые кейсы: business/use-cases.md
+      - Взгляд по ролям: business/personas.md
   - Разработка:
       - Руководство разработчика: development/guide.md
+      - Справочник по модулям: development/modules.md
       - Использование LangGraph: development/langgraph.md
       - Playbook изменений: development/change-playbook.md
   - Архитектура:

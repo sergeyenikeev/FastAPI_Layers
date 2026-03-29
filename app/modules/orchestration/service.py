@@ -53,6 +53,8 @@ class ExecutionCommandService:
         session: AsyncSession,
         payload: CreateExecutionRequest,
     ) -> CommandAccepted:
+        # Execution can be targeted either directly by graph definition or indirectly
+        # through a deployment, which supplies the graph/model/environment context.
         if not payload.deployment_id and not payload.graph_definition_id:
             raise DomainError(
                 "deployment_id or graph_definition_id must be provided",
@@ -75,6 +77,8 @@ class ExecutionCommandService:
                 )
             if deployment.model_version and deployment.model_version.model_endpoint:
                 endpoint = deployment.model_version.model_endpoint
+                # The workflow receives only the context it needs for inference telemetry
+                # and cost attribution; it does not depend directly on ORM entities.
                 model_context = {
                     "endpoint_url": endpoint.base_url,
                     "provider": endpoint.provider,
@@ -120,6 +124,8 @@ class ExecutionCommandService:
             payload=event.payload,
         )
 
+        # The API acknowledges the command immediately. The actual workflow continues in
+        # background so the HTTP path stays fast and the execution model remains async.
         self.task_spawner(
             self._run_workflow(
                 execution_run_id=execution_run_id,
@@ -163,6 +169,9 @@ class ExecutionCommandService:
             self.model_gateway, self._step_emitter(execution_run_id, model_context)
         )
         try:
+            # ExecutionState is the handoff contract between command-side orchestration
+            # and the LangGraph workflow. Only serializable, workflow-relevant data lives
+            # here so that the graph stays decoupled from the transport layer.
             state: ExecutionState = {
                 "execution_run_id": execution_run_id,
                 "deployment_id": deployment_id,
@@ -195,6 +204,8 @@ class ExecutionCommandService:
                 payload=finished_event.payload,
             )
         except Exception as exc:  # pragma: no cover - exception path validated by service tests
+            # Failures are converted to terminal execution events instead of escaping the
+            # background task silently. This keeps the execution history auditable.
             logger.exception(
                 "execution.workflow_failed", execution_run_id=execution_run_id, error=str(exc)
             )
@@ -238,6 +249,8 @@ class ExecutionCommandService:
         ) -> None:
             finished_at = utc_now()
             started_at = finished_at - timedelta(milliseconds=duration_ms)
+            # Telemetry is separated from the visible step output so API consumers see the
+            # business result, while operational pipelines still receive model metrics.
             sanitized_output = {
                 key: value for key, value in output_payload.items() if key != "_telemetry"
             }
@@ -281,6 +294,8 @@ class ExecutionCommandService:
 
             if telemetry:
                 model_name = str(telemetry.get("model_name", "unknown"))
+                # Model-level metrics and cost events are derived from one telemetry blob
+                # so monitoring, inference accounting and alerting stay consistent.
                 await self._publish_metric(
                     "model_latency_ms",
                     "model",
@@ -359,6 +374,8 @@ class ExecutionCommandService:
         entity_id: str,
         value: float,
     ) -> None:
+        # Metrics are emitted as events as well, which keeps monitoring on the same
+        # event backbone and allows projections or detectors to consume them uniformly.
         await self.publisher.publish(
             SYSTEM_METRICS_TOPIC,
             EventEnvelope(

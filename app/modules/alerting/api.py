@@ -18,7 +18,15 @@ def get_alert_queries() -> AlertQueryService:
 
 
 @router.get(
-    "/alerts", response_model=Page[AlertDTO], dependencies=[Depends(require_role(Role.VIEWER))]
+    "/alerts",
+    response_model=Page[AlertDTO],
+    dependencies=[Depends(require_role(Role.VIEWER))],
+    summary="Получить список алертов",
+    description=(
+        "Возвращает пагинированный список алертов из read model с фильтрацией "
+        "по severity и статусу. Ручка нужна операторам для просмотра активных, "
+        "подавленных и уже обработанных сигналов платформы."
+    ),
 )
 async def list_alerts(
     page: int = Query(default=1, ge=1),

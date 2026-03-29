@@ -18,7 +18,15 @@ def get_audit_queries() -> AuditQueryService:
 
 
 @router.get(
-    "/audit", response_model=Page[AuditEventDTO], dependencies=[Depends(require_role(Role.VIEWER))]
+    "/audit",
+    response_model=Page[AuditEventDTO],
+    dependencies=[Depends(require_role(Role.VIEWER))],
+    summary="Получить аудит-события",
+    description=(
+        "Возвращает пагинированный журнал audit events из read model. "
+        "Ручка нужна для расследования изменений, контроля доступа и трассировки "
+        "операций по correlation_id, trace_id и типу сущности."
+    ),
 )
 async def list_audit_events(
     page: int = Query(default=1, ge=1),

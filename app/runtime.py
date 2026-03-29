@@ -33,13 +33,19 @@ class AppRuntime:
         session_factory: async_sessionmaker = SessionLocal,
         engine_override: Any = engine,
     ) -> None:
+        # Logging must be configured before any long-lived services are created so that
+        # startup diagnostics from the runtime, Kafka and workers all use one format.
         configure_logging()
         self.settings = settings
         self.session_factory = session_factory
         self.engine = engine_override
+        # Tests use an in-memory publisher to keep the same application wiring without
+        # requiring a real Kafka broker. Production and local dev use the real publisher.
         self.publisher: PublisherProtocol = (
             InMemoryPublisher() if settings.app_env == "test" else EventPublisher(settings)
         )
+        # AppRuntime is the composition root: modules receive ready-to-use collaborators
+        # and stay isolated from configuration details and object construction concerns.
         self.audit_service = AuditService(self.publisher)
         self.audit_queries = AuditQueryService()
         self.registry_commands = RegistryCommandService(self.publisher, self.audit_service)
@@ -67,9 +73,13 @@ class AppRuntime:
         self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def startup(self) -> None:
+        # Starting the publisher eagerly avoids paying the connection cost on the first
+        # write request and makes startup problems visible during boot, not at runtime.
         await self.publisher.start()
 
     async def shutdown(self) -> None:
+        # We cancel spawned workflow tasks first so shutdown does not leave dangling
+        # coroutines that still try to publish events while transports are closing.
         for task in list(self._background_tasks):
             task.cancel()
         if self._background_tasks:
@@ -77,6 +87,8 @@ class AppRuntime:
         await self.publisher.stop()
 
     def spawn_task(self, coro: Any) -> asyncio.Task[None]:
+        # Background execution runs detached from the HTTP request lifecycle, but we
+        # still track tasks here to support graceful shutdown and avoid silent leaks.
         task = asyncio.create_task(coro)
         self._background_tasks.add(task)
         task.add_done_callback(lambda completed: self._background_tasks.discard(completed))

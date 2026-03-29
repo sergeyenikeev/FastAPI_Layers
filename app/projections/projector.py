@@ -49,6 +49,8 @@ def json_safe(value: Any) -> Any:
 
 class ProjectionService:
     async def apply(self, session: AsyncSession, event: EventEnvelope) -> None:
+        # Event type is mapped to a handler by naming convention. This keeps the dispatch
+        # table compact and makes new projection handlers easy to add incrementally.
         handler_name = event.event_type.replace(".", "_")
         handler = getattr(self, f"_handle_{handler_name}", None)
         if handler is None:
@@ -144,6 +146,8 @@ class ProjectionService:
         payload = dict(event.payload["execution_run"])
         payload["started_at"] = parse_datetime(payload.get("started_at"))
         payload["finished_at"] = parse_datetime(payload.get("finished_at"))
+        # CQRS read side must tolerate eventual consistency: referenced deployment or
+        # graph rows may not exist locally yet if their own projection lags behind.
         payload["deployment_id"] = await self._resolve_fk_or_none(
             session, Deployment, payload.get("deployment_id")
         )
@@ -172,6 +176,8 @@ class ProjectionService:
         payload = dict(event.payload["execution_step"])
         payload["started_at"] = parse_datetime(payload.get("started_at"))
         payload["finished_at"] = parse_datetime(payload.get("finished_at"))
+        # Step events can arrive before execution.started is materialized in the local
+        # read model, so we create a placeholder run to keep FK constraints satisfied.
         await self._ensure_execution_run_placeholder(
             session=session,
             execution_run_id=payload["execution_run_id"],
@@ -248,6 +254,8 @@ class ProjectionService:
     async def _upsert(
         self, session: AsyncSession, model_cls: type[Base], payload: dict[str, Any]
     ) -> None:
+        # Projection payloads often contain nested JSON; we normalize them before writing
+        # so ORM entities receive JSON-safe values independent of event source details.
         payload = {
             field: json_safe(value) if isinstance(value, (dict, list, tuple)) else value
             for field, value in payload.items()
@@ -273,6 +281,8 @@ class ProjectionService:
         entity_id: str,
         changes: dict[str, Any],
     ) -> None:
+        # Missing rows are ignored intentionally: projection workers must remain tolerant
+        # to reordering and partial history instead of crashing on absent read-side state.
         entity = await session.get(model_cls, entity_id)
         if entity is None:
             return
@@ -315,6 +325,8 @@ class ProjectionService:
     ) -> None:
         if await session.get(ExecutionRun, execution_run_id) is not None:
             return
+        # Placeholder rows let out-of-order step events survive until the proper terminal
+        # or started event arrives and enriches the execution record with full context.
         session.add(
             ExecutionRun(
                 id=execution_run_id,

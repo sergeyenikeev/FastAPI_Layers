@@ -31,6 +31,8 @@ def deserialize_event(value: bytes) -> EventEnvelope:
 
 
 def default_partition_key(event: EventEnvelope) -> bytes:
+    # We prefer stable business identifiers so logically related records land in the
+    # same partition and preserve order for a given execution/model/agent stream.
     for key_name in ("agent_id", "model_id", "deployment_id", "execution_run_id"):
         if key_name in event.payload and event.payload[key_name]:
             return str(event.payload[key_name]).encode()
@@ -77,6 +79,8 @@ class EventPublisher:
             await self.start()
         assert self._producer is not None
 
+        # Kafka headers duplicate key tracing fields so operators can inspect messages
+        # and route them without deserializing the full JSON envelope.
         with_headers = list(headers or [])
         with_headers.extend(
             [
@@ -180,10 +184,14 @@ class BaseConsumerWorker:
         assert self._consumer is not None
         try:
             while not self._shutdown.is_set():
+                # getmany gives us a bounded batch and lets the loop periodically wake up
+                # to observe shutdown signals instead of blocking indefinitely on consume.
                 result = await self._consumer.getmany(timeout_ms=1000, max_records=100)
                 for tp, records in result.items():
                     for record in records:
                         await self._process_record(record)
+                    # Lag is tracked after each batch so autoscaling and dashboards can
+                    # show how far a consumer group is behind in near real time.
                     highwater = self._consumer.highwater(tp) or 0
                     position = await self._consumer.position(tp)
                     KAFKA_CONSUMER_LAG.labels(self.group_id, tp.topic).set(
@@ -199,6 +207,9 @@ class BaseConsumerWorker:
         for attempt in range(1, self.max_retries + 1):
             try:
                 async with span(f"kafka.consume.{record.topic}"), self.session_factory() as session:
+                    # Idempotency is enforced per consumer group. This lets multiple
+                    # independent consumers react to one event while still protecting
+                    # each concrete read model or analytics pipeline from duplicates.
                     if await self._is_processed(session, event.event_id):
                         await session.rollback()
                         await self._commit(record)
@@ -211,6 +222,8 @@ class BaseConsumerWorker:
                         return
 
                     await self.handler(event, record, session)
+                    # The processed marker is stored in the same transaction as the
+                    # handler side effects so duplicates cannot partially reapply state.
                     session.add(
                         ProcessedEvent(
                             consumer_group=self.group_id,
@@ -234,6 +247,9 @@ class BaseConsumerWorker:
                     error=str(exc),
                 )
                 if attempt >= self.max_retries:
+                    # After the retry budget is exhausted we commit the source offset and
+                    # move the message to DLQ so one poisonous event does not block the
+                    # entire partition forever.
                     await self._publish_dlq(record.topic, event, str(exc), retry_count=attempt)
                     await self._commit(record)
                     return
@@ -251,6 +267,8 @@ class BaseConsumerWorker:
         assignment = list(self._consumer.assignment())
         for topic_partition in assignment:
             if topic_partition.topic == tp[0] and topic_partition.partition == tp[1]:
+                # Manual offset commit happens only after successful processing or DLQ
+                # transfer. That keeps at-least-once delivery while limiting duplicates.
                 await self._consumer.commit(
                     {topic_partition: OffsetAndMetadata(record.offset + 1, "")}
                 )
@@ -264,6 +282,8 @@ class BaseConsumerWorker:
         retry_count: int,
     ) -> None:
         dlq_topic = TOPIC_TO_DLQ[topic]
+        # DLQ keeps the original event intact and wraps failure metadata around it so
+        # operators can inspect, replay or compensate without losing the source payload.
         envelope = DeadLetterEnvelope(
             topic=topic,
             consumer_group=self.group_id,

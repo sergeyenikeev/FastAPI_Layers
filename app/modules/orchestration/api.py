@@ -29,6 +29,12 @@ def get_execution_queries() -> ExecutionQueryService:
     "/executions",
     response_model=CommandAccepted,
     dependencies=[Depends(require_role(Role.OPERATOR))],
+    summary="Запустить выполнение сценария",
+    description=(
+        "Создает новый execution run и публикует событие `execution.started`. "
+        "Ручка нужна для асинхронного запуска сценария по deployment-у или graph definition. "
+        "HTTP-запрос только принимает команду, а само выполнение продолжается в фоне."
+    ),
 )
 async def create_execution(
     payload: CreateExecutionRequest,
@@ -42,6 +48,12 @@ async def create_execution(
     "/executions",
     response_model=Page[ExecutionRunDTO],
     dependencies=[Depends(require_role(Role.VIEWER))],
+    summary="Получить список выполнений",
+    description=(
+        "Возвращает пагинированный список execution run из read model с фильтрацией "
+        "по deployment и статусу. Ручка нужна для операционного обзора текущих и "
+        "завершенных запусков."
+    ),
 )
 async def list_executions(
     page: int = Query(default=1, ge=1),
@@ -64,6 +76,12 @@ async def list_executions(
     "/executions/{execution_id}",
     response_model=ExecutionRunDTO,
     dependencies=[Depends(require_role(Role.VIEWER))],
+    summary="Получить детали выполнения",
+    description=(
+        "Возвращает execution run вместе с материализованными шагами выполнения. "
+        "Ручка нужна для разбора конкретного запуска, его результата, статуса, "
+        "ошибки и step-by-step истории."
+    ),
 )
 async def get_execution(
     execution_id: str,
