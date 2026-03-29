@@ -8,6 +8,8 @@ nav:
   - Бизнес:
       - Отраслевые кейсы: business/use-cases.md
       - Взгляд по ролям: business/personas.md
+      - Дорожная карта внедрения: business/adoption-roadmap.md
+      - Выгоды и trade-offs: business/roi-and-tradeoffs.md
   - Разработка:
       - Руководство разработчика: development/guide.md
       - Справочник по модулям: development/modules.md
