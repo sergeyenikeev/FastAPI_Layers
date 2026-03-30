@@ -5,6 +5,9 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+# Registry request schemas описывают входные контракты command-side API.
+# Они не дублируют ORM-модели и не зависят от read-model DTO, потому что
+# write-path и read-path эволюционируют независимо в рамках CQRS.
 class CreateAgentRequest(BaseModel):
     name: str = Field(description="Человекочитаемое имя агента.", examples=["billing-ops-agent"])
     description: str | None = Field(
@@ -29,6 +32,8 @@ class CreateAgentRequest(BaseModel):
 
 
 class UpdateAgentRequest(BaseModel):
+    # Patch-like request: все поля опциональны, чтобы API мог поддерживать
+    # частичные обновления без необходимости отправлять полное состояние сущности.
     description: str | None = Field(default=None, description="Новое описание агента.")
     owner: str | None = Field(default=None, description="Новый владелец агента.")
     status: str | None = Field(
@@ -40,6 +45,8 @@ class UpdateAgentRequest(BaseModel):
 
 
 class CreateModelRequest(BaseModel):
+    # Модель здесь понимается как внешний или внутренний inference endpoint,
+    # который затем будет использоваться deployment-ами и execution workflow.
     name: str = Field(description="Человекочитаемое имя model endpoint-а.")
     provider: str = Field(description="Провайдер модели, например openai, local, internal.")
     base_url: str = Field(description="Базовый URL endpoint-а модели.")
@@ -98,6 +105,9 @@ class UpdateGraphRequest(BaseModel):
 
 
 class CreateDeploymentRequest(BaseModel):
+    # Deployment — связующая сущность между agent version, model version и
+    # environment. Поэтому ее контракт богаче: он может ссылаться как на уже
+    # существующее окружение, так и на окружение, создаваемое "по пути".
     agent_version_id: str = Field(description="Идентификатор версии агента для деплоя.")
     model_version_id: str | None = Field(
         default=None, description="Идентификатор версии модели, если она используется в деплое."
@@ -127,6 +137,8 @@ class UpdateDeploymentRequest(BaseModel):
 
 
 class CreateToolRequest(BaseModel):
+    # ToolDefinition хранит метаданные инструмента, а не сам исполняемый код.
+    # implementation_path нужен orchestration-слою как мост к реальной интеграции.
     name: str = Field(description="Имя инструмента.")
     description: str | None = Field(default=None, description="Описание назначения инструмента.")
     schema_definition: dict[str, Any] = Field(
@@ -154,6 +166,8 @@ class UpdateToolRequest(BaseModel):
 
 
 class CreateEnvironmentRequest(BaseModel):
+    # Environment отделен от deployment-а, чтобы одна и та же execution-среда
+    # могла переиспользоваться множеством конфигураций и аналитических отчетов.
     name: str = Field(description="Имя окружения, например dev, stage или prod.")
     description: str | None = Field(default=None, description="Описание назначения окружения.")
     labels: dict[str, Any] = Field(

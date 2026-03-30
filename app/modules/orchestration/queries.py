@@ -10,6 +10,9 @@ from app.db.repositories import paginate_query
 from app.domain.schemas import ExecutionRunDTO, ExecutionStepDTO, Page
 
 
+# Query service orchestration-модуля обслуживает только read-side сценарии:
+# списки запусков и детальные карточки выполнения. Он не стартует workflow,
+# не публикует события и не трогает write-path, сохраняя четкую границу CQRS.
 class ExecutionQueryService:
     async def list_executions(
         self,
@@ -20,6 +23,9 @@ class ExecutionQueryService:
         deployment_id: str | None = None,
         status: str | None = None,
     ) -> Page[ExecutionRunDTO]:
+        # Read-model заранее подгружает шаги выполнения, потому что UI и API
+        # почти всегда хотят видеть run вместе с timeline шагов, а не делать
+        # N+1 запросы к отдельной таблице шагов.
         query = (
             select(ExecutionRun)
             .options(selectinload(ExecutionRun.steps))
@@ -38,6 +44,8 @@ class ExecutionQueryService:
         )
 
     async def get_execution(self, session: AsyncSession, execution_id: str) -> ExecutionRunDTO:
+        # Детальный запрос поднимает один execution run со всеми шагами, чтобы
+        # клиент получил целостный снимок выполнения и его step-level telemetry.
         query = (
             select(ExecutionRun)
             .options(selectinload(ExecutionRun.steps))
@@ -53,6 +61,9 @@ class ExecutionQueryService:
         return self._to_dto(entity)
 
     def _to_dto(self, entity: ExecutionRun) -> ExecutionRunDTO:
+        # ORM-объект сначала нормализуется в DTO верхнего уровня, а затем шаги
+        # явно сериализуются отдельно. Так мы контролируем публичный контракт
+        # и не зависим от внутреннего порядка полей SQLAlchemy модели.
         payload = ExecutionRunDTO.model_validate(entity).model_dump(exclude={"steps"})
         return ExecutionRunDTO(
             **payload,
