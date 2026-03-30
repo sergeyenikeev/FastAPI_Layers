@@ -17,28 +17,36 @@ from app.core.config import Settings
 
 _instrumented_fastapi_apps: set[int] = set()
 _sqlalchemy_instrumented = False
+_provider_initialized = False
 
 
 def setup_telemetry(app: FastAPI, engine: AsyncEngine, settings: Settings) -> None:
     # Telemetry поднимается централизованно, чтобы FastAPI и SQLAlchemy были
     # проинструментированы одним tracer provider и одним service identity.
     global _sqlalchemy_instrumented
-    resource = Resource.create(
-        {
-            "service.name": settings.service_name,
-            "deployment.environment": settings.app_env,
-        }
-    )
-    provider = TracerProvider(resource=resource)
-    if settings.otel_exporter_otlp_endpoint:
-        # OTLP exporter подключается только если endpoint явно задан. Это важно
-        # для локальной разработки и тестов, где tracing может быть отключен.
-        exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
-        provider.add_span_processor(BatchSpanProcessor(exporter))
-    with suppress(Exception):
-        # Tracer provider может уже быть установлен внешней средой или тестом.
-        # Мы не валим процесс, если повторная регистрация невозможна.
-        trace.set_tracer_provider(provider)
+    global _provider_initialized
+    if not _provider_initialized:
+        resource = Resource.create(
+            {
+                "service.name": settings.service_name,
+                "deployment.environment": settings.app_env,
+            }
+        )
+        provider = TracerProvider(resource=resource)
+        if settings.otel_exporter_otlp_endpoint:
+            # OTLP exporter подключается только если endpoint явно задан. Это важно
+            # для локальной разработки и тестов, где tracing может быть отключен.
+            exporter = OTLPSpanExporter(
+                endpoint=settings.otel_exporter_otlp_endpoint, insecure=True
+            )
+            provider.add_span_processor(BatchSpanProcessor(exporter))
+        with suppress(Exception):
+            # Tracer provider может уже быть установлен внешней средой или тестом.
+            # Мы не валим процесс, если повторная регистрация невозможна.
+            trace.set_tracer_provider(provider)
+        _provider_initialized = True
+
+    provider = trace.get_tracer_provider()
 
     app_id = id(app)
     if app_id not in _instrumented_fastapi_apps:

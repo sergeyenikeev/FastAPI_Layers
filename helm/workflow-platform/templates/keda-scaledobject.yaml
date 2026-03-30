@@ -8,6 +8,8 @@ metadata:
   labels:
     {{- include "agentOps.labels" $ | nindent 4 }}
 spec:
+  # ScaledObject связывает конкретный worker deployment с Kafka lag и позволяет
+  # масштабировать потребителей по реальной длине очереди, а не по CPU/RAM.
   scaleTargetRef:
     name: {{ include "agentOps.fullname" $ }}-{{ .name }}
   pollingInterval: {{ $.Values.keda.pollingInterval }}
@@ -17,6 +19,8 @@ spec:
   triggers:
     - type: kafka
       metadata:
+        # consumerGroup и topic приходят из декларации worker-а, чтобы разные
+        # bounded-context consumers могли иметь независимую scaling-политику.
         bootstrapServers: {{ $.Values.config.kafkaBootstrapServers | quote }}
         consumerGroup: {{ .consumerGroup | quote }}
         topic: {{ .primaryTopic | quote }}
@@ -25,4 +29,3 @@ spec:
 {{- end }}
 {{- end }}
 {{- end }}
-

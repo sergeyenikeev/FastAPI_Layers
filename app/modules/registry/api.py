@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import Role, require_role
@@ -31,6 +31,7 @@ from app.modules.registry.schemas import (
     UpdateModelRequest,
     UpdateToolRequest,
 )
+from app.runtime_access import get_request_runtime
 
 # Registry API — транспортный слой для каталога конфигурационных сущностей.
 # Здесь намеренно нет бизнес-логики: роуты только валидируют вход, проверяют
@@ -39,22 +40,12 @@ from app.modules.registry.schemas import (
 router = APIRouter(prefix="", tags=["registry"])
 
 
-def get_registry_commands() -> RegistryCommandService:
-    # Runtime создается один раз на процесс и выступает как composition root.
-    # Dependency-функция нужна, чтобы FastAPI мог лениво получить уже собранный
-    # command service без прямого импорта глобальных singletons на уровне модуля.
-    from app.runtime import get_runtime
-
-    return get_runtime().registry_commands
+def get_registry_commands(request: Request) -> RegistryCommandService:
+    return get_request_runtime(request).registry_commands
 
 
-def get_registry_queries() -> RegistryQueryService:
-    # Read-side сервис выдается отдельной зависимостью, потому что registry
-    # придерживается CQRS: команды и запросы живут в разных сервисных слоях
-    # и могут эволюционировать независимо друг от друга.
-    from app.runtime import get_runtime
-
-    return get_runtime().registry_queries
+def get_registry_queries(request: Request) -> RegistryQueryService:
+    return get_request_runtime(request).registry_queries
 
 
 @router.post(

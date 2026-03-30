@@ -21,6 +21,14 @@ ENV_EXAMPLE_FILE = ROOT / ".env.example"
 EXECUTION_EXAMPLE_FILE = ROOT / "examples" / "workflow_execution_with_validator.json"
 SEED_SCRIPT_FILE = ROOT / "scripts" / "seed_demo_data.py"
 DEFAULT_TIMEOUT_SECONDS = 240
+SERVICE_URLS = {
+    "gateway": "http://localhost:8080",
+    "registry": "http://localhost:8081",
+    "orchestration": "http://localhost:8082",
+    "monitoring": "http://localhost:8083",
+    "alerting": "http://localhost:8084",
+    "audit": "http://localhost:8085",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -280,6 +288,9 @@ def start_stack(no_build: bool, skip_seed: bool, skip_smoke: bool, timeout_sec: 
         print("Запуск smoke-проверки...")
         run_smoke(timeout_sec=30)
 
+    print("Локальные сервисы:")
+    for name, url in SERVICE_URLS.items():
+        print(f"- {name}: {url}")
     print("Локальный стек поднят.")
 
 

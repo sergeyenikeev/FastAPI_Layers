@@ -4,6 +4,8 @@ metadata:
   name: kafka-trigger-auth
   namespace: workflow-platform
 spec:
+  # Этот ресурс нужен, когда Kafka требует аутентификацию: ScaledObject
+  # может ссылаться на него и не хранить SASL-данные в явном виде в values.
   secretTargetRef:
     - parameter: sasl
       name: kafka-credentials

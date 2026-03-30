@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import Role, require_role
@@ -9,6 +9,7 @@ from app.domain.schemas import CommandAccepted, ExecutionRunDTO, Page
 from app.modules.orchestration.queries import ExecutionQueryService
 from app.modules.orchestration.schemas import CreateExecutionRequest
 from app.modules.orchestration.service import ExecutionCommandService
+from app.runtime_access import get_request_runtime
 
 # Этот router представляет HTTP-вход в orchestration-контур.
 # Его задача намеренно узкая: принять команду запуска execution или вернуть
@@ -17,20 +18,12 @@ from app.modules.orchestration.service import ExecutionCommandService
 router = APIRouter(prefix="", tags=["orchestration"])
 
 
-def get_execution_commands() -> ExecutionCommandService:
-    # Зависимость подтягивается из runtime, чтобы endpoint не создавал сервис
-    # сам и не знал, как именно wired publisher, gateway и background tasks.
-    from app.runtime import get_runtime
-
-    return get_runtime().execution_commands
+def get_execution_commands(request: Request) -> ExecutionCommandService:
+    return get_request_runtime(request).execution_commands
 
 
-def get_execution_queries() -> ExecutionQueryService:
-    # Query service отдается отдельно от command service, потому что read-side
-    # и write-side в платформе осознанно разведены по CQRS-подходу.
-    from app.runtime import get_runtime
-
-    return get_runtime().execution_queries
+def get_execution_queries(request: Request) -> ExecutionQueryService:
+    return get_request_runtime(request).execution_queries
 
 
 @router.post(

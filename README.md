@@ -1,6 +1,6 @@
 # Платформа эксплуатации сценариев
 
-Централизованная платформа, готовая к промышленной эксплуатации и быстрому выводу распределенных сценариев в продакшен. Репозиторий реализует модульный монолит с готовыми границами для последующего выделения сервисов, событийную архитектуру на Kafka, CQRS с проекциями в PostgreSQL и эксплуатационный контур для Kubernetes.
+Централизованная платформа, готовая к промышленной эксплуатации и быстрому выводу распределенных сценариев в продакшен. Репозиторий теперь поддерживает микросервисную топологию: отдельные API-сервисы для `registry`, `orchestration`, `monitoring`, `alerting`, `audit`, а также отдельные worker-сервисы для `projection`, `analytics` и `alerts`. Общий compatibility-gateway на `:8080` оставлен как переходный слой для обратной совместимости.
 
 ## Назначение
 
@@ -11,7 +11,7 @@
 
 ## Архитектура
 
-- `FastAPI` предоставляет версионированный API, эндпоинты состояния и `/metrics`
+- `FastAPI` предоставляет отдельные service entrypoint-ы для `registry`, `orchestration`, `monitoring`, `alerting`, `audit` и compatibility-gateway
 - `Kafka` служит магистралью доменных и системных событий
 - `PostgreSQL` хранит модели чтения, проекции и журнал аудита
 - `Redis` используется для координации и сигналов heartbeat от рабочих процессов
@@ -40,7 +40,16 @@
 5. Альтернатива для Windows: `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`
 6. Альтернатива для Unix: `sh scripts/start-local.sh`
 
-API будет доступен по адресу `http://localhost:8080`, метрики по `/metrics`, документация по `/docs`.
+Локальные сервисы после старта:
+
+- gateway: `http://localhost:8080`
+- registry: `http://localhost:8081`
+- orchestration: `http://localhost:8082`
+- monitoring: `http://localhost:8083`
+- alerting: `http://localhost:8084`
+- audit: `http://localhost:8085`
+
+Документация Swagger доступна у каждого сервиса на `/docs`, а переходный gateway по-прежнему остается на `http://localhost:8080/docs`.
 
 ### Единый bootstrap через uv
 

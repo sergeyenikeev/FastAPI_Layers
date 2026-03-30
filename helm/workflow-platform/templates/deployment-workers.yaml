@@ -8,6 +8,8 @@ metadata:
     {{- include "agentOps.labels" $ | nindent 4 }}
     component: {{ .name }}
 spec:
+  # Каждый worker разворачивается отдельным deployment-ом, чтобы его можно было
+  # масштабировать и обновлять независимо от остальных consumer-ролей.
   replicas: {{ .replicaCount }}
   revisionHistoryLimit: 5
   strategy:
@@ -45,6 +47,7 @@ spec:
                 name: {{ $.Values.existingSecretName }}
           env:
             - name: WORKER_ROLE
+              # WORKER_ROLE выбирает конкретный runtime worker внутри общего image.
               value: {{ .role | quote }}
             - name: SERVICE_NAME
               value: {{ printf "%s-%s" (include "agentOps.fullname" $) .name | quote }}
@@ -53,6 +56,8 @@ spec:
           securityContext:
             {{- toYaml $.Values.securityContext | nindent 12 }}
           startupProbe:
+            # Для worker-ов probes упрощены: здесь важно не HTTP, а факт, что
+            # контейнер поднялся и смог запустить event loop.
             exec:
               command: ["python", "-c", "print('worker-started')"]
             initialDelaySeconds: 10
@@ -64,6 +69,8 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 15
           readinessProbe:
+            # В текущем варианте readiness worker-а консервативно минималистичен.
+            # При необходимости сюда можно вынести более строгую проверку Kafka.
             exec:
               command: ["python", "-c", "print('worker-ready')"]
             initialDelaySeconds: 20

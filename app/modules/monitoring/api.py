@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import Role, require_role
@@ -15,6 +15,7 @@ from app.domain.schemas import (
 from app.modules.monitoring.health import HealthService
 from app.modules.monitoring.queries import MonitoringQueryService
 from app.modules.monitoring.schemas import HealthSummary, PerformanceSummary
+from app.runtime_access import get_request_runtime
 
 # Monitoring router отдает только read-side и health-функции платформы.
 # Здесь нет прямой логики детекторов или Prometheus runtime-метрик процесса —
@@ -22,19 +23,12 @@ from app.modules.monitoring.schemas import HealthSummary, PerformanceSummary
 router = APIRouter(prefix="", tags=["monitoring"])
 
 
-def get_health_service() -> HealthService:
-    # HealthService отдается из runtime как process-wide singleton, потому что
-    # он завязан на engine, publisher и общие settings процесса.
-    from app.runtime import get_runtime
-
-    return get_runtime().health_service
+def get_health_service(request: Request) -> HealthService:
+    return get_request_runtime(request).health_service
 
 
-def get_monitoring_queries() -> MonitoringQueryService:
-    # Query service читает materialized monitoring данные из PostgreSQL.
-    from app.runtime import get_runtime
-
-    return get_runtime().monitoring_queries
+def get_monitoring_queries(request: Request) -> MonitoringQueryService:
+    return get_request_runtime(request).monitoring_queries
 
 
 @router.get(

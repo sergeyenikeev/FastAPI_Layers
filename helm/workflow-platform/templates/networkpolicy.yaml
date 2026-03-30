@@ -6,6 +6,8 @@ metadata:
   labels:
     {{- include "agentOps.labels" . | nindent 4 }}
 spec:
+  # Политика задается на все поды приложения и закрывает трафик по умолчанию.
+  # Это защищает платформу от лишних сетевых связей внутри кластера.
   podSelector:
     matchLabels:
       {{- include "agentOps.selectorLabels" . | nindent 6 }}
@@ -14,6 +16,8 @@ spec:
     - Egress
   ingress:
     - from:
+        # Явно разрешаем Prometheus-сборщику доступ к /metrics. Остальные ingress
+        # сценарии обычно проходят через Ingress controller и service routing.
         - namespaceSelector:
             {{- toYaml .Values.networkPolicy.allowPrometheusNamespaceSelector | nindent 12 }}
       ports:
@@ -21,7 +25,8 @@ spec:
           port: 8080
   egress:
     - to:
+        # В примере egress оставлен широким, чтобы не усложнять quick-start.
+        # В production его имеет смысл сузить до Kafka/Redis/Postgres/OTel.
         - ipBlock:
             cidr: 0.0.0.0/0
 {{- end }}
-

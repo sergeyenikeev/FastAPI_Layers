@@ -1,3 +1,6 @@
+# values.yaml задает production-oriented baseline для chart-а. Здесь собраны
+# общие defaults, которые затем могут точечно переопределяться в dev/prod
+# профилях без дублирования всей конфигурации.
 nameOverride: ""
 fullnameOverride: ""
 
@@ -16,6 +19,9 @@ serviceAccount:
 existingSecretName: workflow-platform-secrets
 
 config:
+  # ConfigMap хранит несекретные runtime-параметры. Секреты намеренно вынесены
+  # в Secret/ExternalSecret, чтобы chart оставался совместимым с vault-подобными
+  # системами и не тащил чувствительные значения в Git.
   appName: workflow-platform
   appEnv: prod
   apiV1Prefix: /api/v1
@@ -43,6 +49,8 @@ securityContext:
   runAsGroup: 10001
 
 api:
+  # API держим минимум в двух репликах по умолчанию, потому что это state-light
+  # stateless слой, от которого ожидается высокая доступность при rolling update.
   replicaCount: 2
   service:
     type: ClusterIP
@@ -78,6 +86,9 @@ api:
   affinity: {}
 
 workers:
+  # Каждый worker описывается отдельной декларацией, чтобы chart мог масштабировать
+  # и настраивать их независимо. Это отражает модульность event-driven контура:
+  # projection, analytics и alerts имеют разную нагрузку и разные consumer groups.
   - name: projection
     enabled: true
     replicaCount: 1
@@ -119,6 +130,8 @@ workers:
         memory: 512Mi
 
 ingress:
+  # Ingress включен по умолчанию, потому что публичный API — основной способ
+  # работы с платформой. Аннотации сразу готовы для nginx + cert-manager.
   enabled: true
   className: nginx
   annotations:
@@ -143,6 +156,8 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
 
 keda:
+  # KEDA отвечает именно за event-driven масштабирование worker-ов по lag, а не
+  # за API-поды. Это лучше соответствует природе Kafka consumers, чем HPA по CPU.
   enabled: true
   pollingInterval: 15
   cooldownPeriod: 60
@@ -155,6 +170,8 @@ pdb:
   minAvailable: 1
 
 networkPolicy:
+  # NetworkPolicy включена по умолчанию, чтобы chart был secure-by-default:
+  # явно разрешается только то, что действительно нужно приложению.
   enabled: true
   ingressNamespaces: []
   allowPrometheusNamespaceSelector:
@@ -168,5 +185,7 @@ serviceMonitor:
   additionalLabels: {}
 
 migrations:
+  # Миграции могут выполняться как Helm hook Job перед install/upgrade, чтобы
+  # runtime не стартовал на устаревшей схеме БД.
   enabled: true
   hook: true

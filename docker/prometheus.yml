@@ -2,7 +2,27 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: workflow-api
+  - job_name: workflow-gateway
     metrics_path: /metrics
     static_configs:
-      - targets: ["api:8080"]
+      - targets: ["api-gateway:8080"]
+  - job_name: workflow-registry
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["registry-api:8080"]
+  - job_name: workflow-orchestration
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["orchestration-api:8080"]
+  - job_name: workflow-monitoring
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["monitoring-api:8080"]
+  - job_name: workflow-alerting
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["alerting-api:8080"]
+  - job_name: workflow-audit
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["audit-api:8080"]

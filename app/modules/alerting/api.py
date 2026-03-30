@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import Role, require_role
 from app.db.session import get_session
 from app.domain.schemas import AlertDTO, Page
 from app.modules.alerting.queries import AlertQueryService
+from app.runtime_access import get_request_runtime
 
 # Alerting router intentionally read-only: создание alert-ов идет через events
 # и workers, а HTTP API здесь служит для операторского просмотра их состояния.
 router = APIRouter(prefix="", tags=["alerting"])
 
 
-def get_alert_queries() -> AlertQueryService:
-    from app.runtime import get_runtime
-
-    return get_runtime().alert_queries
+def get_alert_queries(request: Request) -> AlertQueryService:
+    return get_request_runtime(request).alert_queries
 
 
 @router.get(

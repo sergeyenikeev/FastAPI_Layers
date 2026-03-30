@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import Role, require_role
 from app.db.session import get_session
 from app.domain.schemas import AuditEventDTO, Page
 from app.modules.audit.queries import AuditQueryService
+from app.runtime_access import get_request_runtime
 
 # Audit router предоставляет доступ к materialized audit trail и не участвует
 # в генерации audit events — это responsibility audit service и write-side flow.
 router = APIRouter(prefix="", tags=["audit"])
 
 
-def get_audit_queries() -> AuditQueryService:
-    from app.runtime import get_runtime
-
-    return get_runtime().audit_queries
+def get_audit_queries(request: Request) -> AuditQueryService:
+    return get_request_runtime(request).audit_queries
 
 
 @router.get(

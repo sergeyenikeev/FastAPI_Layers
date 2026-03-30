@@ -6,6 +6,8 @@ metadata:
     {{- include "agentOps.labels" . | nindent 4 }}
     component: api
 spec:
+  # API deployment остается stateless: состояние execution и projections живет
+  # вне пода, поэтому rolling updates безопасны при корректных probes.
   replicas: {{ .Values.api.replicaCount }}
   revisionHistoryLimit: 5
   strategy:
@@ -23,6 +25,8 @@ spec:
         {{- include "agentOps.selectorLabels" . | nindent 8 }}
         component: api
       annotations:
+        # Помимо ServiceMonitor сохраняем стандартные prometheus annotations,
+        # чтобы chart был совместим и с более простыми Prometheus инсталляциями.
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "8080"
@@ -33,6 +37,8 @@ spec:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "agentOps.serviceAccountName" . }}
+      # У приложения есть время корректно завершить HTTP-запросы и закрыть
+      # Kafka/DB подключения до SIGKILL.
       terminationGracePeriodSeconds: {{ .Values.api.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -71,6 +77,8 @@ spec:
             periodSeconds: {{ .Values.api.probes.liveness.periodSeconds }}
             failureThreshold: {{ .Values.api.probes.liveness.failureThreshold }}
           readinessProbe:
+            # Readiness смотрит в бизнес-health endpoint, а не просто в открытый
+            # порт: pod считается готовым только если runtime может обслуживать API.
             httpGet:
               path: {{ .Values.api.probes.readiness.path }}
               port: http
@@ -79,6 +87,8 @@ spec:
             failureThreshold: {{ .Values.api.probes.readiness.failureThreshold }}
       affinity:
         podAntiAffinity:
+          # Предпочтительно раскладываем API по разным нодам, чтобы одиночный
+          # node failure не уронил весь публичный вход в платформу.
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               podAffinityTerm:

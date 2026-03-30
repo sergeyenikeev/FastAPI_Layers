@@ -7,6 +7,8 @@ metadata:
     {{- include "agentOps.labels" . | nindent 4 }}
   {{- if .Values.migrations.hook }}
   annotations:
+    # Job выполняется до install/upgrade, чтобы новый runtime не стартовал
+    # поверх старой схемы базы данных.
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   {{- end }}
@@ -26,6 +28,8 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["alembic", "upgrade", "head"]
+          # Job использует тот же image и те же env, что и runtime, поэтому
+          # миграции выполняются в идентичном приложению окружении.
           envFrom:
             - configMapRef:
                 name: {{ include "agentOps.fullname" . }}-config
@@ -34,4 +38,3 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
 {{- end }}
-

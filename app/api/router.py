@@ -8,8 +8,16 @@ from app.modules.monitoring.api import router as monitoring_router
 from app.modules.orchestration.api import router as orchestration_router
 from app.modules.registry.api import router as registry_router
 
+ROUTERS = {
+    "registry": registry_router,
+    "orchestration": orchestration_router,
+    "monitoring": monitoring_router,
+    "alerting": alerting_router,
+    "audit": audit_router,
+}
 
-def build_api_router() -> APIRouter:
+
+def build_api_router(modules: list[str] | tuple[str, ...] | None = None) -> APIRouter:
     # Этот файл собирает единый HTTP-router из модульных роутеров.
     # Он является тонкой границей между FastAPI-приложением и предметными
     # модулями: main.py знает только про build_api_router(), а детали того,
@@ -21,9 +29,7 @@ def build_api_router() -> APIRouter:
     # затем monitoring/alerting/audit как эксплуатационный слой.
     # Это не меняет контракт маршрутов, но делает состав API предсказуемым
     # для чтения, сопровождения и будущего выделения модулей в сервисы.
-    router.include_router(registry_router)
-    router.include_router(orchestration_router)
-    router.include_router(monitoring_router)
-    router.include_router(alerting_router)
-    router.include_router(audit_router)
+    selected_modules = modules or list(ROUTERS.keys())
+    for module_name in selected_modules:
+        router.include_router(ROUTERS[module_name])
     return router
