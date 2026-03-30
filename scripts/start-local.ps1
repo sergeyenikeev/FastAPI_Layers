@@ -4,6 +4,9 @@ param(
     [int]$TimeoutSec = 240
 )
 
+# PowerShell wrapper оставляет Windows-разработчику короткую команду запуска,
+# но вся настоящая логика живет в одном Python-скрипте dev_stack.py, чтобы
+# orchestration локального стека не дублировалась между shell-окружениями.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 

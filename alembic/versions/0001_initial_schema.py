@@ -13,10 +13,15 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Первая ревизия специально использует текущее состояние Base.metadata как
+    # "bootstrap snapshot" схемы. Для стартового репозитория это снижает риск
+    # рассинхронизации между ORM и миграцией до появления последующих ревизий.
     bind = op.get_bind()
     Base.metadata.create_all(bind=bind)
 
 
 def downgrade() -> None:
+    # Обратная миграция зеркалирует bootstrap-логику: для самой первой ревизии
+    # допустимо снести всю схему целиком, потому что более раннего состояния нет.
     bind = op.get_bind()
     Base.metadata.drop_all(bind=bind)

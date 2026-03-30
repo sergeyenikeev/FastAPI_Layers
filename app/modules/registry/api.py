@@ -32,16 +32,26 @@ from app.modules.registry.schemas import (
     UpdateToolRequest,
 )
 
+# Registry API — транспортный слой для каталога конфигурационных сущностей.
+# Здесь намеренно нет бизнес-логики: роуты только валидируют вход, проверяют
+# RBAC и передают управление command/query сервисам, чтобы HTTP-контракт не
+# смешивался с event-driven write-side и materialized read-side.
 router = APIRouter(prefix="", tags=["registry"])
 
 
 def get_registry_commands() -> RegistryCommandService:
+    # Runtime создается один раз на процесс и выступает как composition root.
+    # Dependency-функция нужна, чтобы FastAPI мог лениво получить уже собранный
+    # command service без прямого импорта глобальных singletons на уровне модуля.
     from app.runtime import get_runtime
 
     return get_runtime().registry_commands
 
 
 def get_registry_queries() -> RegistryQueryService:
+    # Read-side сервис выдается отдельной зависимостью, потому что registry
+    # придерживается CQRS: команды и запросы живут в разных сервисных слоях
+    # и могут эволюционировать независимо друг от друга.
     from app.runtime import get_runtime
 
     return get_runtime().registry_queries
@@ -62,6 +72,8 @@ async def create_agent(
     payload: CreateAgentRequest,
     service: RegistryCommandService = Depends(get_registry_commands),
 ) -> CommandAccepted:
+    # Команда не пишет напрямую в read-model: она фиксирует изменение через
+    # write-side и публикует событие, которое затем будет спроецировано worker-ом.
     return await service.create_agent(payload)
 
 
@@ -83,6 +95,9 @@ async def list_agents(
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[AgentDTO]:
+    # Чтение идет только из проекций PostgreSQL. API сознательно не обращается
+    # к Kafka, чтобы ответ был детерминированным и не зависел от временного
+    # состояния consumer-ов.
     return await service.list_agents(session, page=page, page_size=page_size, q=q)
 
 
@@ -102,6 +117,8 @@ async def get_agent(
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> AgentDTO:
+    # Карточка агента — типичный read-model запрос: клиенту нужен уже собранный
+    # материализованный срез, а не сырой поток доменных событий.
     return await service.get_agent(session, agent_id)
 
 
@@ -121,6 +138,8 @@ async def update_agent(
     payload: UpdateAgentRequest,
     service: RegistryCommandService = Depends(get_registry_commands),
 ) -> CommandAccepted:
+    # Update проходит тем же маршрутом, что и create: команды меняют источник
+    # истины через события, а не пытаются "подправить" read-side напрямую.
     return await service.update_agent(agent_id, payload)
 
 
@@ -139,6 +158,8 @@ async def delete_agent(
     agent_id: str,
     service: RegistryCommandService = Depends(get_registry_commands),
 ) -> CommandAccepted:
+    # Удаление также modeled как команда, чтобы audit trail, идемпотентность и
+    # downstream-подписчики получили единообразное событие жизненного цикла.
     return await service.delete_agent(agent_id)
 
 
@@ -344,6 +365,9 @@ async def create_deployment(
     payload: CreateDeploymentRequest,
     service: RegistryCommandService = Depends(get_registry_commands),
 ) -> CommandAccepted:
+    # Deployment связывает несколько registry-сущностей, поэтому именно здесь
+    # особенно важно проходить через command service, который умеет проверять
+    # кросс-ссылки и публиковать одно согласованное доменное событие.
     return await service.create_deployment(payload)
 
 
@@ -367,6 +391,8 @@ async def list_deployments(
     session: AsyncSession = Depends(get_session),
     service: RegistryQueryService = Depends(get_registry_queries),
 ) -> Page[DeploymentDTO]:
+    # Для списка deployment-ов особенно ценен materialized read-model: он уже
+    # собирает связанные имена и статусы в форму, удобную для UI и операторов.
     return await service.list_deployments(session, page=page, page_size=page_size, q=q)
 
 

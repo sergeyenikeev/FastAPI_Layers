@@ -2,6 +2,8 @@ param(
     [int]$TimeoutSec = 30
 )
 
+# Smoke wrapper запускает публичный сценарий проверки через тот же dev_stack.py,
+# чтобы ручная эксплуатация и автоматизированная проверка использовали один код.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 

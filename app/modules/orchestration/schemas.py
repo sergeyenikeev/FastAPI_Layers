@@ -5,6 +5,9 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+# Схемы orchestration описывают HTTP-контракты вокруг запуска выполнения и
+# модель результата вызова model gateway. Они отделены от runtime state графа,
+# потому что внешний API не должен зависеть от внутреннего устройства workflow.
 class CreateExecutionRequest(BaseModel):
     deployment_id: str | None = Field(
         default=None,
@@ -35,6 +38,9 @@ class CreateExecutionRequest(BaseModel):
 
 
 class ModelInvocationResult(BaseModel):
+    # Это нормализованный срез результата model gateway, который позволяет
+    # workflow и monitoring-слою работать с единым форматом независимо от
+    # конкретного провайдера модели.
     content: str
     latency_ms: float
     token_input: int

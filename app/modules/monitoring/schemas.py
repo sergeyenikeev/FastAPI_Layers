@@ -6,6 +6,9 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+# Monitoring schemas описывают публичный read-side контракт модуля мониторинга.
+# Здесь хранятся не внутренние DTO Kafka/ORM, а именно формы данных, которые
+# удобно отдавать через API и документировать в OpenAPI.
 class ComponentHealth(BaseModel):
     component: str = Field(description="Имя проверяемого компонента.")
     status: str = Field(description="Состояние компонента: passing, degraded или failing.")
@@ -34,5 +37,8 @@ class PerformanceSummary(BaseModel):
 
 
 class TimeSeriesAggregate(BaseModel):
+    # Этот минимальный DTO нужен для графиков и агрегированных отчетов: bucket
+    # остается строковым, чтобы transport-слой мог свободно отдавать часовые,
+    # дневные и другие окна без жесткой привязки к одному типу группировки.
     bucket: str
     value: float

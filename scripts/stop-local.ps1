@@ -2,6 +2,8 @@ param(
     [switch]$Volumes
 )
 
+# Отдельный stop-wrapper нужен, чтобы путь "поднять/остановить" выглядел
+# одинаково для команды, даже если под капотом все делается через uv + Python.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
