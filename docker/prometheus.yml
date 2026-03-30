@@ -14,6 +14,10 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["orchestration-api:8080"]
+  - job_name: workflow-orchestration-query
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["orchestration-query-api:8080"]
   - job_name: workflow-monitoring
     metrics_path: /metrics
     static_configs:

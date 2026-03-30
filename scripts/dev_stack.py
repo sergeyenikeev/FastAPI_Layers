@@ -25,6 +25,7 @@ SERVICE_URLS = {
     "gateway": "http://localhost:8080",
     "registry": "http://localhost:8081",
     "orchestration": "http://localhost:8082",
+    "orchestration-query": "http://localhost:8086",
     "monitoring": "http://localhost:8083",
     "alerting": "http://localhost:8084",
     "audit": "http://localhost:8085",

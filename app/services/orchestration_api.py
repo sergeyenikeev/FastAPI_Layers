@@ -8,10 +8,12 @@ settings = get_settings().model_copy(update={"service_name": "orchestration-api"
 app = create_service_app(
     title="Workflow Orchestration Service",
     description=(
-        "Микросервис оркестрации. Принимает команды на запуск execution run и "
-        "отдает материализованное состояние выполнений."
+        "Микросервис command ingress для оркестрации. Принимает команды на запуск "
+        "execution run и публикует стартовые события в Kafka."
     ),
     settings=settings,
-    runtime=get_runtime(modules=("orchestration",), service_name="orchestration-api"),
-    modules=["orchestration"],
+    runtime=get_runtime(
+        modules=("orchestration-command",), service_name="orchestration-api"
+    ),
+    modules=["orchestration-command"],
 )

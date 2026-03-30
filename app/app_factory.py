@@ -36,7 +36,11 @@ def create_service_app(
         yield
         await runtime.shutdown()
 
-    tag_names = list(dict.fromkeys([*modules, "monitoring"]))
+    # Для service-specific routing вроде `orchestration-command` и
+    # `orchestration-query` Swagger должен продолжать показывать единый тег
+    # `orchestration`, иначе документация искусственно распадется на transport детали.
+    normalized_tags = [module.split("-", maxsplit=1)[0] for module in modules]
+    tag_names = list(dict.fromkeys([*normalized_tags, "monitoring"]))
     tags = [OPENAPI_TAGS[name] for name in tag_names if name in OPENAPI_TAGS]
     app = FastAPI(
         title=title,

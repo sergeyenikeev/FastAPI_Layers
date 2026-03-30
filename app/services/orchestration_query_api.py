@@ -1,0 +1,19 @@
+from __future__ import annotations
+
+from app.app_factory import create_service_app
+from app.core.config import get_settings
+from app.runtime import get_runtime
+
+settings = get_settings().model_copy(update={"service_name": "orchestration-query-api"})
+app = create_service_app(
+    title="Workflow Orchestration Query Service",
+    description=(
+        "Микросервис read-side для оркестрации. Отдает materialized историю "
+        "execution run-ов и шагов из PostgreSQL projections без прямого чтения Kafka."
+    ),
+    settings=settings,
+    runtime=get_runtime(
+        modules=("orchestration-query",), service_name="orchestration-query-api"
+    ),
+    modules=["orchestration-query"],
+)

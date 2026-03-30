@@ -43,7 +43,7 @@ class ExecutionCommandService:
         self,
         publisher: PublisherProtocol,
         audit_service: AuditService,
-        model_gateway: ModelGateway,
+        model_gateway: ModelGateway | None,
         task_spawner: Callable[[Awaitable[None]], asyncio.Task[None]],
     ) -> None:
         self.publisher = publisher
@@ -205,6 +205,8 @@ class ExecutionCommandService:
     ) -> None:
         # Workflow исполняется в фоне, уже вне HTTP request lifecycle.
         # Здесь происходит реальная orchestration-работа и публикация terminal events.
+        if self.model_gateway is None:
+            raise RuntimeError("Execution workflow runtime is not enabled for this process")
         ACTIVE_EXECUTIONS.inc()
         workflow = ExecutionWorkflow(
             self.model_gateway,

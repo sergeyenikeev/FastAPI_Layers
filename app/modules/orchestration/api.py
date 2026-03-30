@@ -11,10 +11,11 @@ from app.modules.orchestration.schemas import CreateExecutionRequest
 from app.modules.orchestration.service import ExecutionCommandService
 from app.runtime_access import get_request_runtime
 
-# Этот router представляет HTTP-вход в orchestration-контур.
-# Его задача намеренно узкая: принять команду запуска execution или вернуть
-# materialized read model. Никакой workflow-логики здесь нет — она живет в
-# service/graph слоях, чтобы API оставался тонким transport-adapter.
+# Orchestration API разделен на command/query router-ы, чтобы отдельный
+# микросервис мог поднимать только POST ingress без read-side зависимостей.
+# Совмещенный router оставлен для gateway и обратной совместимости.
+command_router = APIRouter(prefix="", tags=["orchestration"])
+query_router = APIRouter(prefix="", tags=["orchestration"])
 router = APIRouter(prefix="", tags=["orchestration"])
 
 
@@ -26,7 +27,7 @@ def get_execution_queries(request: Request) -> ExecutionQueryService:
     return get_request_runtime(request).execution_queries
 
 
-@router.post(
+@command_router.post(
     "/executions",
     response_model=CommandAccepted,
     dependencies=[Depends(require_role(Role.OPERATOR))],
@@ -47,7 +48,7 @@ async def create_execution(
     return await service.create_execution(session, payload)
 
 
-@router.get(
+@query_router.get(
     "/executions",
     response_model=Page[ExecutionRunDTO],
     dependencies=[Depends(require_role(Role.VIEWER))],
@@ -82,7 +83,7 @@ async def list_executions(
     )
 
 
-@router.get(
+@query_router.get(
     "/executions/{execution_id}",
     response_model=ExecutionRunDTO,
     dependencies=[Depends(require_role(Role.VIEWER))],
@@ -101,3 +102,7 @@ async def get_execution(
     # Детали execution возвращаются уже в форме read model: один запуск плюс
     # его materialized steps. Это основной операторский способ разбирать run.
     return await service.get_execution(session, execution_id)
+
+
+router.include_router(command_router)
+router.include_router(query_router)

@@ -5,12 +5,16 @@ from fastapi import APIRouter
 from app.modules.alerting.api import router as alerting_router
 from app.modules.audit.api import router as audit_router
 from app.modules.monitoring.api import router as monitoring_router
+from app.modules.orchestration.api import command_router as orchestration_command_router
+from app.modules.orchestration.api import query_router as orchestration_query_router
 from app.modules.orchestration.api import router as orchestration_router
 from app.modules.registry.api import router as registry_router
 
 ROUTERS = {
     "registry": registry_router,
     "orchestration": orchestration_router,
+    "orchestration-command": orchestration_command_router,
+    "orchestration-query": orchestration_query_router,
     "monitoring": monitoring_router,
     "alerting": alerting_router,
     "audit": audit_router,

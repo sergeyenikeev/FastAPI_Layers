@@ -45,6 +45,7 @@
 - gateway: `http://localhost:8080`
 - registry: `http://localhost:8081`
 - orchestration: `http://localhost:8082`
+- orchestration-query: `http://localhost:8086`
 - monitoring: `http://localhost:8083`
 - alerting: `http://localhost:8084`
 - audit: `http://localhost:8085`
@@ -57,6 +58,7 @@
 
 - `registry-api`
 - `orchestration-api`
+- `orchestration-query-api`
 - `monitoring-api`
 - `alerting-api`
 - `audit-api`
@@ -75,12 +77,15 @@
 Помимо отдельных контейнеров и портов, у каждого сервиса теперь свой process runtime:
 
 - `registry-api` поднимает только registry command/query слой и audit write-side;
-- `orchestration-api` поднимает только execution command/query слой, `ModelGateway` и audit write-side;
+- `orchestration-api` поднимает только command ingress для `POST /executions`, publisher и audit write-side;
+- `orchestration-query-api` поднимает только read-side по execution (`GET /executions`, `GET /executions/{id}`) и health/metrics;
 - `monitoring-api` поднимает только monitoring query layer и health;
 - `alerting-api` поднимает только alert query layer и health;
 - `audit-api` поднимает только audit query layer и health;
 - `worker` поднимает только event consumers, projector, anomaly/drift detector-ы, alert processing и execution runtime;
 - `gateway-api` агрегирует все API bounded context-ы как переходный compatibility layer.
+
+После выноса `execution-worker` command API больше не обязан поднимать `ModelGateway` и выполнять LangGraph внутри HTTP-процесса. Это сознательный шаг к более чистому CQRS-разделению: `orchestration-api` принимает команду, Kafka передает управление worker-у, `orchestration-query-api` и gateway возвращают read-side из materialized projections.
 
 Это уменьшает связность сервисов и делает архитектуру ближе к настоящему production-ready split, а не только к логическому разбиению в коде.
 

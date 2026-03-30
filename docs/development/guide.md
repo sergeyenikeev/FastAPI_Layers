@@ -56,12 +56,14 @@ make migrations-upgrade
 - Gateway API: `http://localhost:8080`
 - Registry API: `http://localhost:8081`
 - Orchestration API: `http://localhost:8082`
+- Orchestration Query API: `http://localhost:8086`
 - Monitoring API: `http://localhost:8083`
 - Alerting API: `http://localhost:8084`
 - Audit API: `http://localhost:8085`
 - Swagger gateway: `http://localhost:8080/docs`
 - Swagger registry: `http://localhost:8081/docs`
 - Swagger orchestration: `http://localhost:8082/docs`
+- Swagger orchestration query: `http://localhost:8086/docs`
 - Метрики gateway: `http://localhost:8080/metrics`
 - Prometheus: `http://localhost:9090`
 
@@ -91,7 +93,8 @@ uv run python scripts/dev_stack.py start
 После перехода на микросервисную архитектуру bounded context-ы API поднимаются как отдельные процессы и контейнеры. Это означает:
 
 - `registry-api` отвечает только за реестровый контур;
-- `orchestration-api` отвечает только за execution-контур;
+- `orchestration-api` отвечает только за command ingress execution-контура;
+- `orchestration-query-api` отвечает только за read-side execution history;
 - `monitoring-api` отвечает только за monitoring read-side и health;
 - `alerting-api` отвечает только за alert read-side;
 - `audit-api` отвечает только за audit read-side;
@@ -115,7 +118,8 @@ uv run python scripts/dev_stack.py start
 | --- | --- | --- |
 | `gateway-api` | `registry`, `orchestration`, `monitoring`, `alerting`, `audit` | совместимый агрегирующий вход для legacy-сценариев и общего Swagger |
 | `registry-api` | `registry` | удобно разрабатывать и тестировать реестр без orchestration и analytics слоя |
-| `orchestration-api` | `orchestration` | удобно разрабатывать execution flow и `LangGraph`, не поднимая registry command-side лишний раз |
+| `orchestration-api` | `orchestration` | удобно разрабатывать command ingress execution flow без read-side и тяжелого runtime |
+| `orchestration-query-api` | `orchestration-query` | удобно разрабатывать materialized историю выполнений и `GET /executions*` отдельно от command ingress |
 | `monitoring-api` | `monitoring` | изолированная работа с health и read-side метриками |
 | `alerting-api` | `alerting` | изолированный просмотр alert read model |
 | `audit-api` | `audit` | изолированный доступ к audit trail |
@@ -150,6 +154,7 @@ uv run python scripts/dev_stack.py start
 | `gateway` | `app.main:app` |
 | `registry` | `app.services.registry_api:app` |
 | `orchestration` | `app.services.orchestration_api:app` |
+| `orchestration-query` | `app.services.orchestration_query_api:app` |
 | `monitoring` | `app.services.monitoring_api:app` |
 | `alerting` | `app.services.alerting_api:app` |
 | `audit` | `app.services.audit_api:app` |
@@ -206,6 +211,10 @@ uv run uvicorn app.services.registry_api:app --reload --host 0.0.0.0 --port 8081
 
 ```bash
 uv run uvicorn app.services.orchestration_api:app --reload --host 0.0.0.0 --port 8082
+```
+
+```bash
+uv run uvicorn app.services.orchestration_query_api:app --reload --host 0.0.0.0 --port 8086
 ```
 
 ```bash
@@ -516,7 +525,7 @@ uv run pre-commit install
 
 - Логи структурированы и подходят для машинной обработки.
 - Для локальной отладки gateway смотрите `docker compose logs -f api-gateway`.
-- Для конкретных API-сервисов используйте `docker compose logs -f registry-api`, `orchestration-api`, `monitoring-api`, `alerting-api`, `audit-api`.
+- Для конкретных API-сервисов используйте `docker compose logs -f registry-api`, `orchestration-api`, `orchestration-query-api`, `monitoring-api`, `alerting-api`, `audit-api`.
 - Для воркеров используйте `docker compose logs -f worker-projection`, `worker-analytics`, `worker-alerts`.
 
 Если сервис стартует, но работает “не с тем” набором зависимостей, первым делом проверьте:

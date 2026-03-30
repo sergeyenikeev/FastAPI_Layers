@@ -11,6 +11,7 @@
 ## Группы потребителей
 
 - `projection-consumers`
+- `execution-consumers`
 - `metrics-aggregation-consumers`
 - `anomaly-consumers`
 - `drift-consumers`
@@ -43,6 +44,17 @@ uv run python scripts/kafka_debug.py all
 - `uv run python scripts/kafka_debug.py peek-dlq agent.executions.dlq --max-messages 1 --from-beginning`
 - `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --event-type execution.started`
 - `uv run python scripts/kafka_debug.py peek-topic agent.executions --from-beginning --correlation-id <correlation_id>`
+
+## Как Kafka участвует в split orchestration
+
+После разделения orchestration на command-side и query-side Kafka стала фактической границей между приемом команды и исполнением workflow:
+
+- `orchestration-api` принимает `POST /api/v1/executions` и публикует `execution.started`;
+- `execution-worker` читает `agent.executions` в группе `execution-consumers` и исполняет LangGraph вне HTTP-процесса;
+- `projection-worker` материализует шаги и итог выполнения в PostgreSQL;
+- `orchestration-query-api` и compatibility gateway читают только эти materialized projections через `GET /api/v1/executions*`.
+
+Это важно потому, что command ingress, тяжелое выполнение и read-side теперь масштабируются независимо, но по-прежнему связаны единым событийным следом через `correlation_id`, `trace_id` и event envelope.
 
 ## Обработка сбоев
 

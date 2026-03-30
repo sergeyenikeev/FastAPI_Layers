@@ -14,7 +14,8 @@
 
 - `gateway-api` — переходный совместимый вход, агрегирующий все bounded context API в одном процессе для legacy-сценариев и обратной совместимости
 - `registry-api` — отдельный микросервис каталога и command/read-side API для агентов, моделей, графов, deployment-ов, инструментов и окружений
-- `orchestration-api` — отдельный микросервис запуска execution run и чтения materialized истории выполнений
+- `orchestration-api` — отдельный command-only микросервис запуска execution run
+- `orchestration-query-api` — отдельный read-only микросервис чтения materialized истории выполнений
 - `monitoring-api` — отдельный микросервис health, performance, cost, anomaly и drift read models
 - `alerting-api` — отдельный микросервис просмотра alert read model
 - `audit-api` — отдельный микросервис просмотра audit trail
@@ -58,6 +59,7 @@ flowchart LR
 
 - `app.services.registry_api`
 - `app.services.orchestration_api`
+- `app.services.orchestration_query_api`
 - `app.services.monitoring_api`
 - `app.services.alerting_api`
 - `app.services.audit_api`
@@ -67,6 +69,7 @@ flowchart LR
 - `:8080` — compatibility gateway
 - `:8081` — registry
 - `:8082` — orchestration
+- `:8086` — orchestration query
 - `:8083` — monitoring
 - `:8084` — alerting
 - `:8085` — audit
@@ -79,7 +82,8 @@ flowchart LR
 | --- | --- | --- |
 | `gateway-api` | все API bounded context: `registry`, `orchestration`, `monitoring`, `alerting`, `audit` | worker-only зависимости |
 | `registry-api` | `RegistryCommandService`, `RegistryQueryService`, `AuditService`, `HealthService` | `ExecutionCommandService`, `ModelGateway`, `MonitoringQueryService`, detector-ы, projector |
-| `orchestration-api` | `ExecutionCommandService`, `ExecutionQueryService`, `ModelGateway`, `AuditService`, `HealthService` | registry command/query слой, detector-ы, projector |
+| `orchestration-api` | `ExecutionCommandService`, `AuditService`, `HealthService` | `ExecutionQueryService`, `ModelGateway`, registry command/query слой, detector-ы, projector |
+| `orchestration-query-api` | `ExecutionQueryService`, `HealthService` | `ExecutionCommandService`, `ModelGateway`, `AuditService`, registry command/query слой, detector-ы, projector |
 | `monitoring-api` | `MonitoringQueryService`, `HealthService` | command-side registry/orchestration, `ModelGateway`, projector, detector-ы |
 | `alerting-api` | `AlertQueryService`, `HealthService` | alert processing worker logic, command-side сервисы, projector |
 | `audit-api` | `AuditQueryService`, `HealthService` | command-side audit emitters, orchestration и registry зависимости |
@@ -88,6 +92,8 @@ flowchart LR
 Такой разрез уменьшает связность процессов, снижает лишнюю инициализацию зависимостей и делает следующий шаг к полному physical split проще: код уже знает, какие сервисы действительно принадлежат конкретному deployable unit.
 
 После выноса `execution-worker` orchestration API больше не обязан исполнять LangGraph внутри HTTP-процесса. Его задача — принять команду, зафиксировать `execution.started` и передать фактическое выполнение в Kafka-backed worker-контур. Это уменьшает latency API, делает запуск сценариев более устойчивым к всплескам нагрузки и позволяет масштабировать execution-путь отдельно от read/query API.
+
+Отдельный `orchestration-api` теперь intentionally command-only: в его OpenAPI остаются `POST /api/v1/executions` и health/metrics endpoints. Read-side маршруты `GET /api/v1/executions*` вынесены в `orchestration-query-api`, а compatibility gateway по-прежнему агрегирует оба контура для обратной совместимости.
 
 Это дает несколько важных эффектов:
 

@@ -120,6 +120,15 @@ apiServices:
       enabled: false
       path: /orchestration
       pathType: Prefix
+  - name: orchestration-query
+    enabled: true
+    component: orchestration-query
+    serviceName: orchestration-query-api
+    expose: true
+    ingress:
+      enabled: false
+      path: /orchestration-query
+      pathType: Prefix
   - name: monitoring
     enabled: true
     component: monitoring

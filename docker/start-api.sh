@@ -16,6 +16,9 @@ case "$APP_COMPONENT" in
   orchestration)
     APP_MODULE="app.services.orchestration_api:app"
     ;;
+  orchestration-query)
+    APP_MODULE="app.services.orchestration_query_api:app"
+    ;;
   monitoring)
     APP_MODULE="app.services.monitoring_api:app"
     ;;

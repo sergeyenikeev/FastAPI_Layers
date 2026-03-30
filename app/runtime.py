@@ -25,7 +25,17 @@ from app.modules.registry.commands import RegistryCommandService
 from app.modules.registry.queries import RegistryQueryService
 from app.projections.projector import ProjectionService
 
-API_MODULES = frozenset({"registry", "orchestration", "monitoring", "alerting", "audit"})
+API_MODULES = frozenset(
+    {
+        "registry",
+        "orchestration",
+        "orchestration-command",
+        "orchestration-query",
+        "monitoring",
+        "alerting",
+        "audit",
+    }
+)
 WORKER_MODULE = "workers"
 ALL_RUNTIME_MODULES = frozenset({*API_MODULES, WORKER_MODULE})
 T = TypeVar("T")
@@ -90,8 +100,10 @@ class AppRuntime:
         if "orchestration" in self.modules or WORKER_MODULE in self.modules:
             self.model_gateway = ModelGateway()
 
-        if "orchestration" in self.modules:
+        if "orchestration" in self.modules or "orchestration-query" in self.modules:
             self.execution_queries = ExecutionQueryService()
+
+        if "orchestration" in self.modules or "orchestration-command" in self.modules:
             self.execution_commands = ExecutionCommandService(
                 self.publisher,
                 self._require(self.audit_service, "audit_service"),
@@ -132,6 +144,7 @@ class AppRuntime:
         return (
             "registry" in self.modules
             or "orchestration" in self.modules
+            or "orchestration-command" in self.modules
             or WORKER_MODULE in self.modules
         )
 

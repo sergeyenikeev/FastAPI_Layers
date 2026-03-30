@@ -21,6 +21,7 @@ uv run python scripts/dev_stack.py start
 - `http://localhost:8080` — compatibility gateway
 - `http://localhost:8081` — registry API
 - `http://localhost:8082` — orchestration API
+- `http://localhost:8086` — orchestration query API
 - `http://localhost:8083` — monitoring API
 - `http://localhost:8084` — alerting API
 - `http://localhost:8085` — audit API
@@ -48,12 +49,15 @@ helm upgrade --install workflow-platform helm/workflow-platform \
 
 - `registry-api` поднимает только registry runtime;
 - `orchestration-api` поднимает только orchestration runtime;
+- `orchestration-query-api` поднимает только orchestration query runtime;
 - `monitoring-api` поднимает только monitoring runtime;
 - `alerting-api` поднимает только alerting runtime;
 - `audit-api` поднимает только audit runtime;
 - `gateway-api` остается совместимым агрегирующим слоем;
 - worker deployment-ы поднимают только worker runtime без HTTP bounded context-ов;
 - `execution-worker` выполняет LangGraph после получения события `execution.started`, не нагружая API-процесс долгими workflow-задачами.
+
+Дополнительно `orchestration-api` теперь можно рассматривать как чистый command ingress. Он нужен для приема `POST /api/v1/executions`, а query-ручки просмотра выполнений публикуются отдельным `orchestration-query-api`. Это позволяет держать read traffic и heavy execution runtime в разных процессах и масштабировать их независимо.
 
 Это важно для эксплуатации, потому что:
 

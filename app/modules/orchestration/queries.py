@@ -65,7 +65,15 @@ class ExecutionQueryService:
         # явно сериализуются отдельно. Так мы контролируем публичный контракт
         # и не зависим от внутреннего порядка полей SQLAlchemy модели.
         payload = ExecutionRunDTO.model_validate(entity).model_dump(exclude={"steps"})
+        ordered_steps = sorted(
+            entity.steps,
+            key=lambda step: (
+                step.started_at.isoformat() if step.started_at is not None else "",
+                step.finished_at.isoformat() if step.finished_at is not None else "",
+                step.id,
+            ),
+        )
         return ExecutionRunDTO(
             **payload,
-            steps=[ExecutionStepDTO.model_validate(step) for step in entity.steps],
+            steps=[ExecutionStepDTO.model_validate(step) for step in ordered_steps],
         )

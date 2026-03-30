@@ -32,6 +32,7 @@
 - `gateway` -> `app.main:app`
 - `registry` -> `app.services.registry_api:app`
 - `orchestration` -> `app.services.orchestration_api:app`
+- `orchestration-query` -> `app.services.orchestration_query_api:app`
 - `monitoring` -> `app.services.monitoring_api:app`
 - `alerting` -> `app.services.alerting_api:app`
 - `audit` -> `app.services.audit_api:app`
@@ -82,6 +83,7 @@
    - `workflow-gateway`
    - `workflow-registry`
    - `workflow-orchestration`
+   - `workflow-orchestration-query`
    - `workflow-monitoring`
    - `workflow-alerting`
    - `workflow-audit`
