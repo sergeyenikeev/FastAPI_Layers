@@ -70,6 +70,22 @@ flowchart LR
 - `:8084` — alerting
 - `:8085` — audit
 
+### Service-Specific Runtime
+
+Переход на микросервисную топологию доведен не только до уровня `docker-compose` и отдельных entrypoint-ов, но и до уровня process runtime. Это означает, что каждый сервис поднимает только свой набор зависимостей, а не общий “супер-runtime”.
+
+| Сервис | Что поднимает внутри процесса | Что сознательно не поднимает |
+| --- | --- | --- |
+| `gateway-api` | все API bounded context: `registry`, `orchestration`, `monitoring`, `alerting`, `audit` | worker-only зависимости |
+| `registry-api` | `RegistryCommandService`, `RegistryQueryService`, `AuditService`, `HealthService` | `ExecutionCommandService`, `ModelGateway`, `MonitoringQueryService`, detector-ы, projector |
+| `orchestration-api` | `ExecutionCommandService`, `ExecutionQueryService`, `ModelGateway`, `AuditService`, `HealthService` | registry command/query слой, detector-ы, projector |
+| `monitoring-api` | `MonitoringQueryService`, `HealthService` | command-side registry/orchestration, `ModelGateway`, projector, detector-ы |
+| `alerting-api` | `AlertQueryService`, `HealthService` | alert processing worker logic, command-side сервисы, projector |
+| `audit-api` | `AuditQueryService`, `HealthService` | command-side audit emitters, orchestration и registry зависимости |
+| `worker` | publisher, `ProjectionService`, anomaly/drift detector-ы, `AlertingService` | HTTP-роутеры и API query/command сервисы |
+
+Такой разрез уменьшает связность процессов, снижает лишнюю инициализацию зависимостей и делает следующий шаг к полному physical split проще: код уже знает, какие сервисы действительно принадлежат конкретному deployable unit.
+
 Это дает несколько важных эффектов:
 
 - можно масштабировать API bounded context-ы независимо друг от друга;

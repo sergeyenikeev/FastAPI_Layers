@@ -17,6 +17,99 @@
 2. Убедитесь в доступности PostgreSQL, Redis и Kafka
 3. Проверьте сигналы heartbeat рабочих процессов в таблице `worker_heartbeats`
 
+## Поднят не тот API-сервис
+
+Если контейнер стартует, но отвечает “не тем” Swagger, не тем набором ручек или не тем `service.name`, проверяйте цепочку запуска сверху вниз:
+
+1. Убедитесь, что в контейнере задан правильный `APP_COMPONENT`
+2. Проверьте, что `docker/start-api.sh` маппит это значение на ожидаемый модуль
+3. Проверьте, что `SERVICE_NAME` соответствует сервису, который вы ожидаете увидеть в логах и трассах
+4. Если это Kubernetes, проверьте соответствующий `Deployment` и его env-переменные
+5. Если это локальный Docker, проверьте блок сервиса в `docker-compose.yml`
+
+Практическая матрица:
+
+- `gateway` -> `app.main:app`
+- `registry` -> `app.services.registry_api:app`
+- `orchestration` -> `app.services.orchestration_api:app`
+- `monitoring` -> `app.services.monitoring_api:app`
+- `alerting` -> `app.services.alerting_api:app`
+- `audit` -> `app.services.audit_api:app`
+
+Симптомы проблемы обычно выглядят так:
+
+- на `/docs` открыт не тот bounded context;
+- в логах приходит неожиданный `service_name`;
+- Prometheus видит метрики не у того job;
+- трассы OpenTelemetry помечаются другим `service.name`, чем ожидалось.
+
+Минимальный порядок проверки:
+
+1. `docker compose logs -f <service-name>`
+2. `docker compose exec <service-name> printenv APP_COMPONENT`
+3. `docker compose exec <service-name> printenv SERVICE_NAME`
+4. открыть `/` и `/docs` у этого сервиса
+
+Если проблема в Kubernetes:
+
+1. `kubectl get deployment -n <namespace>`
+2. `kubectl describe deployment <name> -n <namespace>`
+3. проверить env `APP_COMPONENT` и `SERVICE_NAME`
+4. проверить, что pod labels и service selector совпадают
+
+## Сервис не виден в Prometheus
+
+Если сервис работает, но его нет в Prometheus:
+
+1. Убедитесь, что сам сервис отвечает на `/metrics`
+2. Проверьте, что Prometheus scrapes именно этот target
+3. В Kubernetes проверьте наличие `ServiceMonitor`
+4. Проверьте labels `component` и selector у `Service`
+5. Убедитесь, что `service_name` и `job_name` не перепутаны в ожиданиях
+
+Локально:
+
+1. Откройте `http://localhost:9090/targets`
+2. Найдите нужный target:
+   - `workflow-gateway`
+   - `workflow-registry`
+   - `workflow-orchestration`
+   - `workflow-monitoring`
+   - `workflow-alerting`
+   - `workflow-audit`
+3. Если target down, проверьте:
+   - контейнер сервиса запущен ли;
+   - отвечает ли `/metrics`;
+   - нет ли ошибки в `docker/prometheus.yml`
+
+В Kubernetes:
+
+1. Проверьте `ServiceMonitor`
+2. Проверьте labels на `Service`
+3. Проверьте, что Prometheus Operator видит этот `ServiceMonitor`
+4. Если `NetworkPolicy` включена, убедитесь, что namespace Prometheus разрешен
+
+## Сервис не виден в OpenTelemetry
+
+Если HTTP работает, но трассы по сервису не приходят:
+
+1. Проверьте `OTEL_EXPORTER_OTLP_ENDPOINT`
+2. Проверьте `SERVICE_NAME`
+3. Проверьте доступность `otel-collector`
+4. Проверьте логи collector
+
+Локально:
+
+1. `docker compose logs -f otel-collector`
+2. Убедитесь, что API-сервису задан `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`
+3. Сделайте запрос к сервису и проверьте, что collector печатает trace через `debug` exporter
+
+В Kubernetes:
+
+1. Проверьте endpoint OTLP в `ConfigMap` и env контейнера
+2. Проверьте DNS и сетевую доступность collector-сервиса
+3. Убедитесь, что `service.name` в trace соответствует `SERVICE_NAME` процесса
+
 ## Растет очередь в Kafka
 
 1. Проверьте количество реплик воркеров, масштабируемых через KEDA

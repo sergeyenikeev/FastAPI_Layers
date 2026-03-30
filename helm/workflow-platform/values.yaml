@@ -88,6 +88,11 @@ apiServices:
   # Каждый API bounded context разворачивается отдельно. Gateway оставлен как
   # переходный слой совместимости, а остальные сервисы можно масштабировать и
   # публиковать независимо.
+  #
+  # `component` напрямую маппится на APP_COMPONENT внутри контейнера, а значит
+  # определяет, какой ASGI entrypoint выберет docker/start-api.sh.
+  # `serviceName` попадает в SERVICE_NAME и затем используется в логах,
+  # OpenTelemetry resource (`service.name`) и runtime health/heartbeat-сигналах.
   - name: gateway
     enabled: true
     component: gateway

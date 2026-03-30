@@ -69,6 +69,20 @@
 
 `gateway-api` сохранен как совместимый вход для переходного периода, чтобы существующие интеграции и локальные сценарии не ломались одномоментно.
 
+### Service-specific runtime
+
+Помимо отдельных контейнеров и портов, у каждого сервиса теперь свой process runtime:
+
+- `registry-api` поднимает только registry command/query слой и audit write-side;
+- `orchestration-api` поднимает только execution command/query слой, `ModelGateway` и audit write-side;
+- `monitoring-api` поднимает только monitoring query layer и health;
+- `alerting-api` поднимает только alert query layer и health;
+- `audit-api` поднимает только audit query layer и health;
+- `worker` поднимает только event consumers, projector, anomaly/drift detector-ы и alert processing;
+- `gateway-api` агрегирует все API bounded context-ы как переходный compatibility layer.
+
+Это уменьшает связность сервисов и делает архитектуру ближе к настоящему production-ready split, а не только к логическому разбиению в коде.
+
 ### Единый bootstrap через uv
 
 Для локальной разработки рекомендуется использовать единый bootstrap-скрипт:

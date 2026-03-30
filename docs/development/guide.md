@@ -102,6 +102,64 @@ uv run python scripts/dev_stack.py start
 - можно локально проверять только один bounded context через отдельный Swagger;
 - можно независимо смотреть логи и health конкретного сервиса, а не всего бывшего монолита.
 
+### Какой runtime у какого сервиса
+
+Важно различать два уровня:
+
+- отдельный HTTP entrypoint;
+- отдельный process runtime с собственным набором зависимостей.
+
+В проекте уже реализованы оба уровня. Это значит, что сервисы не просто слушают разные порты, а действительно поднимают разный dependency graph.
+
+| Сервис | Runtime-модули | Практический смысл |
+| --- | --- | --- |
+| `gateway-api` | `registry`, `orchestration`, `monitoring`, `alerting`, `audit` | совместимый агрегирующий вход для legacy-сценариев и общего Swagger |
+| `registry-api` | `registry` | удобно разрабатывать и тестировать реестр без orchestration и analytics слоя |
+| `orchestration-api` | `orchestration` | удобно разрабатывать execution flow и `LangGraph`, не поднимая registry command-side лишний раз |
+| `monitoring-api` | `monitoring` | изолированная работа с health и read-side метриками |
+| `alerting-api` | `alerting` | изолированный просмотр alert read model |
+| `audit-api` | `audit` | изолированный доступ к audit trail |
+| `worker` | `workers` | только event consumers, projector, detector-ы и alert processing |
+
+С практической точки зрения это дает три преимущества:
+
+- быстрее стартуют отдельные процессы;
+- проще локализовать регресс, потому что упавший runtime затрагивает меньшую часть системы;
+- легче выносить bounded context в полностью отдельные сервисы без переписывания внутреннего wiring.
+
+### Как работает `APP_COMPONENT`
+
+Для контейнерного запуска ключевая переменная — `APP_COMPONENT`.
+
+Где она используется:
+
+- задается в `docker-compose.yml` для каждого API-контейнера;
+- передается в Kubernetes deployment через Helm;
+- читается скриптом [docker/start-api.sh](d:/p/FastAPI/FastAPI_Layers/docker/start-api.sh).
+
+Что она определяет:
+
+- какой ASGI entrypoint будет запущен;
+- какой bounded context API реально поднимется;
+- какой `service_name` увидят логи, Prometheus и OpenTelemetry.
+
+Матрица соответствия:
+
+| `APP_COMPONENT` | Запускаемый модуль |
+| --- | --- |
+| `gateway` | `app.main:app` |
+| `registry` | `app.services.registry_api:app` |
+| `orchestration` | `app.services.orchestration_api:app` |
+| `monitoring` | `app.services.monitoring_api:app` |
+| `alerting` | `app.services.alerting_api:app` |
+| `audit` | `app.services.audit_api:app` |
+
+Если сервис стартует “не туда”, почти всегда проблема находится в одном из трех мест:
+
+- неверно задан `APP_COMPONENT`;
+- неверно задан `SERVICE_NAME`;
+- контейнер стартовал не через `docker/start-api.sh`, а через другой entrypoint.
+
 ### Какие demo-данные создает локальный seed
 
 Локальный seed нужен для двух задач:
@@ -138,6 +196,28 @@ docker compose up postgres redis kafka otel-collector prometheus
 
 ```bash
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+Если нужно поднять конкретный сервис, используйте его entrypoint напрямую:
+
+```bash
+uv run uvicorn app.services.registry_api:app --reload --host 0.0.0.0 --port 8081
+```
+
+```bash
+uv run uvicorn app.services.orchestration_api:app --reload --host 0.0.0.0 --port 8082
+```
+
+```bash
+uv run uvicorn app.services.monitoring_api:app --reload --host 0.0.0.0 --port 8083
+```
+
+```bash
+uv run uvicorn app.services.alerting_api:app --reload --host 0.0.0.0 --port 8084
+```
+
+```bash
+uv run uvicorn app.services.audit_api:app --reload --host 0.0.0.0 --port 8085
 ```
 
 3. При необходимости отдельно запустите воркеры:
@@ -438,6 +518,12 @@ uv run pre-commit install
 - Для локальной отладки gateway смотрите `docker compose logs -f api-gateway`.
 - Для конкретных API-сервисов используйте `docker compose logs -f registry-api`, `orchestration-api`, `monitoring-api`, `alerting-api`, `audit-api`.
 - Для воркеров используйте `docker compose logs -f worker-projection`, `worker-analytics`, `worker-alerts`.
+
+Если сервис стартует, но работает “не с тем” набором зависимостей, первым делом проверьте:
+
+- переменную `APP_COMPONENT` в контейнере;
+- какой entrypoint запускается через `docker/start-api.sh`;
+- какой `modules=(...)` передается в `get_runtime(...)` внутри сервисного файла из `app/services/`.
 
 ### Проверка Kafka
 

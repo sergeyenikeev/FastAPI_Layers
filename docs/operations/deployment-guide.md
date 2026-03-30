@@ -42,6 +42,24 @@ helm upgrade --install workflow-platform helm/workflow-platform \
 - `KEDA ScaledObject` для worker deployment-ов;
 - migration job, network policy и ingress.
 
+### Что это значит на уровне процессов
+
+Развертывание теперь разрезано не только по Kubernetes-объектам, но и по runtime-сборке приложения:
+
+- `registry-api` поднимает только registry runtime;
+- `orchestration-api` поднимает только orchestration runtime;
+- `monitoring-api` поднимает только monitoring runtime;
+- `alerting-api` поднимает только alerting runtime;
+- `audit-api` поднимает только audit runtime;
+- `gateway-api` остается совместимым агрегирующим слоем;
+- worker deployment-ы поднимают только worker runtime без HTTP bounded context-ов.
+
+Это важно для эксплуатации, потому что:
+
+- у сервисов меньше лишних зависимостей на старте;
+- авария в одном bounded context меньше влияет на остальные;
+- ресурсы CPU и memory проще подбирать под фактическую роль процесса, а не под условный “общий API”.
+
 Ingress по умолчанию публикует только `gateway`-сервис. Остальные API-сервисы остаются внутренними `ClusterIP` service-ами и обычно используются:
 
 - внутренними consumer-ами и tooling;

@@ -58,8 +58,14 @@ spec:
             - secretRef:
                 name: {{ $.Values.existingSecretName }}
           env:
+            # APP_COMPONENT выбирает bounded context entrypoint внутри одного
+            # контейнерного образа. Благодаря этому chart может развертывать
+            # несколько API-сервисов без сборки отдельных image per service.
             - name: APP_COMPONENT
               value: {{ .component | quote }}
+            # SERVICE_NAME нужен не только для логического имени сервиса, но и
+            # для observability: он идет в structured logs, heartbeat payload и
+            # OpenTelemetry resource/service.name.
             - name: SERVICE_NAME
               value: {{ .serviceName | quote }}
           resources:
