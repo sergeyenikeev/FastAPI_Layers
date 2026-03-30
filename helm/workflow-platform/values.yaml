@@ -310,6 +310,29 @@ apiServices:
       tls: []
 
 workers:
+  defaults:
+    terminationGracePeriodSeconds: 45
+    revisionHistoryLimit: 5
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints: []
+    probes:
+      startup:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 18
+      liveness:
+        initialDelaySeconds: 20
+        periodSeconds: 15
+      readiness:
+        initialDelaySeconds: 20
+        periodSeconds: 15
   # Каждый worker описывается отдельной декларацией, чтобы chart мог масштабировать
   # и настраивать их независимо. Это отражает модульность event-driven контура:
   # projection, analytics и alerts имеют разную нагрузку и разные consumer groups.
@@ -319,6 +342,14 @@ workers:
     role: projection
     consumerGroup: projection-consumers
     primaryTopic: registry.events
+    terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints: []
+    probes: {}
     resources:
       requests:
         cpu: 200m
@@ -332,6 +363,14 @@ workers:
     role: analytics
     consumerGroup: anomaly-consumers
     primaryTopic: system.metrics
+    terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints: []
+    probes: {}
     resources:
       requests:
         cpu: 300m
@@ -345,6 +384,14 @@ workers:
     role: alerts
     consumerGroup: alert-consumers
     primaryTopic: anomaly.events
+    terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints: []
+    probes: {}
     resources:
       requests:
         cpu: 150m
@@ -358,6 +405,14 @@ workers:
     role: execution
     consumerGroup: execution-consumers
     primaryTopic: agent.executions
+    terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints: []
+    probes: {}
     resources:
       requests:
         cpu: 300m

@@ -102,10 +102,12 @@ uv run python scripts/dev_stack.py start
 
 Для Kubernetes/Helm это важно не только логически, но и operationally: каждый API-сервис теперь можно отдельно тюнить по `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `revisionHistoryLimit`, `strategy`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity` и `topologySpreadConstraints`, а не только разносить по разным контейнерам. Для наследования глобального HPA оставляйте `autoscaling: {}`, а для локального отключения HPA у сервиса задавайте `autoscaling.enabled: false`.
 
+Тот же подход теперь действует и для `workers[]`: у каждой consumer-роли можно независимо настраивать rollout, placement и probe-профиль. Это особенно полезно, когда `execution-worker` и `projection-worker` живут под разной нагрузкой и не должны наследовать один и тот же operational baseline.
+
 Для разработчика это полезно в двух сценариях:
 
 - можно локально проверять только один bounded context через отдельный Swagger;
-- можно независимо смотреть логи и health конкретного сервиса, а не всего бывшего монолита.
+- можно независимо смотреть логи и health конкретного сервиса, а не общего gateway-процесса.
 
 ### Какой runtime у какого сервиса
 

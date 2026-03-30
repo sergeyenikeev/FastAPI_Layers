@@ -65,6 +65,57 @@ helm upgrade --install workflow-platform helm/workflow-platform \
 - авария в одном bounded context меньше влияет на остальные;
 - ресурсы CPU и memory проще подбирать под фактическую роль процесса, а не под условный “общий API”.
 
+### Per-worker tuning
+
+Worker-ы теперь тоже настраиваются не только по `replicaCount` и `resources`, но и по operational-профилю deployment-а. На уровне каждого элемента `workers[]` можно переопределить:
+
+- `terminationGracePeriodSeconds`
+- `revisionHistoryLimit`
+- `strategy`
+- `nodeSelector`
+- `tolerations`
+- `affinity`
+- `topologySpreadConstraints`
+- `probes`
+
+Это полезно, когда:
+
+- `execution-worker` нужно держать на нодах с большим запасом CPU;
+- `projection-worker` должен обновляться максимально консервативно;
+- `alerts-worker` можно запускать на отдельном пуле нод или с другими tolerations;
+- `analytics-worker` нужно распределять по зонам независимо от остальных consumer-ролей.
+
+Пример:
+
+```yaml
+workers:
+  - name: execution
+    enabled: true
+    role: execution
+    replicaCount: 2
+    terminationGracePeriodSeconds: 90
+    revisionHistoryLimit: 10
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    nodeSelector:
+      workload-tier: cpu-heavy
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "cpu-heavy"
+        effect: "NoSchedule"
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            component: execution
+```
+
 Ingress по умолчанию публикует только `gateway`-сервис. Остальные API-сервисы остаются внутренними `ClusterIP` service-ами и обычно используются:
 
 - внутренними consumer-ами и tooling;

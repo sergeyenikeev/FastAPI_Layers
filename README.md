@@ -76,6 +76,8 @@
 
 Точно так же на уровне конкретного API-сервиса теперь можно отдельно переопределять `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `revisionHistoryLimit`, `strategy`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity` и `topologySpreadConstraints`, не копируя весь глобальный профиль `api.*`. Если сервис должен наследовать глобальные настройки HPA, оставляйте `autoscaling: {}`. Если HPA для конкретного сервиса нужно выключить, задавайте `autoscaling.enabled: false`.
 
+Worker-ы теперь тоже тюнятся независимо: на уровне `workers[]` можно переопределять rollout и placement-параметры конкретной consumer-роли, не затрагивая остальные воркеры.
+
 ### Service-specific runtime
 
 Помимо отдельных контейнеров и портов, у каждого сервиса теперь свой process runtime:

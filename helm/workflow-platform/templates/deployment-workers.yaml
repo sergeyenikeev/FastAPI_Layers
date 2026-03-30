@@ -1,42 +1,59 @@
-{{- range .Values.workers }}
-{{- if .enabled }}
+{{- range $worker := .Values.workers }}
+{{- if $worker.enabled }}
+{{- $effectiveTerminationGracePeriodSeconds := default $.Values.workers.defaults.terminationGracePeriodSeconds $worker.terminationGracePeriodSeconds }}
+{{- $effectiveRevisionHistoryLimit := default $.Values.workers.defaults.revisionHistoryLimit $worker.revisionHistoryLimit }}
+{{- $effectiveStrategy := mergeOverwrite (deepCopy $.Values.workers.defaults.strategy) (default (dict) $worker.strategy) }}
+{{- $effectiveNodeSelector := mergeOverwrite (deepCopy $.Values.workers.defaults.nodeSelector) (default (dict) $worker.nodeSelector) }}
+{{- $effectiveTolerations := concat $.Values.workers.defaults.tolerations (default (list) $worker.tolerations) }}
+{{- $effectiveAffinity := mergeOverwrite (deepCopy $.Values.workers.defaults.affinity) (default (dict) $worker.affinity) }}
+{{- $effectiveTopologySpreadConstraints := concat $.Values.workers.defaults.topologySpreadConstraints (default (list) $worker.topologySpreadConstraints) }}
+{{- $effectiveProbes := mergeOverwrite (deepCopy $.Values.workers.defaults.probes) (default (dict) $worker.probes) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "agentOps.fullname" $ }}-{{ .name }}
+  name: {{ include "agentOps.fullname" $ }}-{{ $worker.name }}
   labels:
     {{- include "agentOps.labels" $ | nindent 4 }}
-    component: {{ .name }}
+    component: {{ $worker.name }}
 spec:
   # Каждый worker разворачивается отдельным deployment-ом, чтобы его можно было
   # масштабировать и обновлять независимо от остальных consumer-ролей.
-  replicas: {{ .replicaCount }}
-  revisionHistoryLimit: 5
+  replicas: {{ $worker.replicaCount }}
+  revisionHistoryLimit: {{ $effectiveRevisionHistoryLimit }}
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    {{- toYaml $effectiveStrategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "agentOps.selectorLabels" $ | nindent 6 }}
-      component: {{ .name }}
+      component: {{ $worker.name }}
   template:
     metadata:
       labels:
         {{- include "agentOps.selectorLabels" $ | nindent 8 }}
-        component: {{ .name }}
+        component: {{ $worker.name }}
     spec:
       {{- if $.Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml $.Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "agentOps.serviceAccountName" $ }}
-      terminationGracePeriodSeconds: 45
+      terminationGracePeriodSeconds: {{ $effectiveTerminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      {{- if $effectiveNodeSelector }}
+      nodeSelector:
+        {{- toYaml $effectiveNodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if $effectiveTolerations }}
+      tolerations:
+        {{- toYaml $effectiveTolerations | nindent 8 }}
+      {{- end }}
+      {{- if $effectiveTopologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml $effectiveTopologySpreadConstraints | nindent 8 }}
+      {{- end }}
       containers:
-        - name: {{ .name }}
+        - name: {{ $worker.name }}
           image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
           command: ["/bin/sh", "docker/start-worker.sh"]
@@ -48,11 +65,11 @@ spec:
           env:
             - name: WORKER_ROLE
               # WORKER_ROLE выбирает конкретный runtime worker внутри общего image.
-              value: {{ .role | quote }}
+              value: {{ $worker.role | quote }}
             - name: SERVICE_NAME
-              value: {{ printf "%s-%s" (include "agentOps.fullname" $) .name | quote }}
+              value: {{ printf "%s-%s" (include "agentOps.fullname" $) $worker.name | quote }}
           resources:
-            {{- toYaml .resources | nindent 12 }}
+            {{- toYaml $worker.resources | nindent 12 }}
           securityContext:
             {{- toYaml $.Values.securityContext | nindent 12 }}
           startupProbe:
@@ -60,21 +77,25 @@ spec:
             # контейнер поднялся и смог запустить event loop.
             exec:
               command: ["python", "-c", "print('worker-started')"]
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            failureThreshold: 18
+            initialDelaySeconds: {{ $effectiveProbes.startup.initialDelaySeconds }}
+            periodSeconds: {{ $effectiveProbes.startup.periodSeconds }}
+            failureThreshold: {{ $effectiveProbes.startup.failureThreshold }}
           livenessProbe:
             exec:
               command: ["python", "-c", "print('worker-live')"]
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: {{ $effectiveProbes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ $effectiveProbes.liveness.periodSeconds }}
           readinessProbe:
             # В текущем варианте readiness worker-а консервативно минималистичен.
             # При необходимости сюда можно вынести более строгую проверку Kafka.
             exec:
               command: ["python", "-c", "print('worker-ready')"]
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: {{ $effectiveProbes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ $effectiveProbes.readiness.periodSeconds }}
+      {{- if $effectiveAffinity }}
+      affinity:
+        {{- toYaml $effectiveAffinity | nindent 8 }}
+      {{- end }}
 ---
 {{- end }}
 {{- end }}

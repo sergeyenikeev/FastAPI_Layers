@@ -24,6 +24,19 @@
 - `alerts-worker` — consumer alert processing и deduplication
 - `execution-worker` — consumer, который подхватывает `execution.started` и выполняет LangGraph вне HTTP-процесса
 
+### Операционный профиль deployment-ов
+
+Helm chart теперь настраивает не только логическое разделение сервисов, но и их deployment-профили:
+
+- у `apiServices[]` можно независимо переопределять ресурсы, probes, HPA, rollout-стратегию и placement;
+- у `workers[]` можно независимо переопределять rollout и placement-параметры, не меняя остальные consumer-роли;
+- это позволяет держать `execution-worker` ближе к тяжелым runtime-зависимостям, а `projection-worker` и `alerts-worker` размещать и масштабировать по другим operational правилам.
+
+Практически это значит, что Kubernetes-модель теперь повторяет не только bounded context-границы, но и реальные различия в характере нагрузки:
+
+- API-сервисы оптимизируются под HTTP latency и доступность;
+- worker-ы оптимизируются под event consumption, lag и устойчивость к всплескам фоновой нагрузки.
+
 ### Схема выполнения сценария
 
 ```mermaid
@@ -74,6 +87,19 @@ flowchart LR
 - `:8084` — alerting
 - `:8085` — audit
 
+### Что остается общим, а что уже разнесено
+
+Эта таблица помогает быстро понять, почему в проекте одновременно встречаются и модульные, и микросервисные формулировки.
+
+| Слой | Что остается общим | Что уже разнесено |
+| --- | --- | --- |
+| Кодовая база | один репозиторий, общие `app/core`, `app/domain`, `app/db`, единые договоренности по событиям и DTO | bounded context-ы разделены по модулям и уже готовы к дальнейшему physical split |
+| API-контур | compatibility gateway сохраняет единый внешний вход для обратной совместимости | `registry-api`, `orchestration-api`, `orchestration-query-api`, `monitoring-api`, `alerting-api`, `audit-api` работают как отдельные сервисы |
+| Выполнение сценариев | общая event-модель, общий Kafka backbone, единые correlation и trace conventions | command ingress и фактическое выполнение разделены между `orchestration-api` и `execution-worker` |
+| Read-side | единая схема PostgreSQL projections и общий projection-подход | чтение execution history уже вынесено в отдельный `orchestration-query-api`, а monitoring, alerting и audit имеют собственные read API |
+| Deployment | один Helm chart и единые базовые values | каждый API-сервис и каждый worker получает собственный deployment-профиль, HPA/KEDA и placement-параметры |
+| Observability | единые форматы логов, метрик и tracing conventions | Prometheus, OpenTelemetry и health-маршруты видят и диагностируют каждый сервис как отдельный runtime |
+
 ### Service-Specific Runtime
 
 Переход на микросервисную топологию доведен не только до уровня `docker-compose` и отдельных entrypoint-ов, но и до уровня process runtime. Это означает, что каждый сервис поднимает только свой набор зависимостей, а не общий “супер-runtime”.
@@ -120,7 +146,7 @@ flowchart LR
 ## Компромиссы и решения
 
 - Начальная миграция использует `Base.metadata.create_all`, чтобы гарантировать согласованность стартовой схемы с ORM-моделями. Следующие ревизии лучше вести через явные Alembic-изменения.
-- Выполнение сценариев сейчас происходит внутри API-процесса для ускорения стартового сценария. Граница сервиса оркестрации уже выделена и готова к выносу в отдельный воркер.
+- Командный ingress и фактическое выполнение теперь разделены: `orchestration-api` принимает команду и публикует `execution.started`, а `execution-worker` подхватывает событие из Kafka и исполняет LangGraph вне HTTP-процесса.
 - Вызов внешнего обработчика использует унифицированный контракт `/invoke` и детерминированный резервный сценарий, чтобы локальный запуск и CI оставались работоспособными даже без внешних интеграций.
 
 ## Точки расширения

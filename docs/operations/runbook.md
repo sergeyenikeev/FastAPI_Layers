@@ -69,6 +69,35 @@ apiServices:
 
 Если у конкретного API-сервиса HPA вообще не нужен, задайте `autoscaling.enabled=false` прямо внутри соответствующего `apiServices[]`.
 
+## Нужно отдельно настроить rollout или placement для worker-а
+
+Если проблема связана не с API, а с конкретной consumer-ролью:
+
+1. добавьте override прямо в нужный элемент `workers[]`;
+2. используйте `terminationGracePeriodSeconds`, `revisionHistoryLimit`, `strategy`, `nodeSelector`, `tolerations`, `affinity`, `topologySpreadConstraints` и `probes`;
+3. выполните `helm upgrade`;
+4. проверьте итоговый `Deployment` worker-а;
+5. убедитесь, что rollout не ухудшает lag по соответствующей consumer group.
+
+Минимальный пример наследования:
+
+```yaml
+workers:
+  - name: projection
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    strategy: {}
+    topologySpreadConstraints: []
+    probes: {}
+```
+
+Такой режим особенно полезен для:
+
+1. `execution-worker`, если он выполняет долгие сценарии и требует большего graceful shutdown;
+2. `projection-worker`, если read-side критичен и его нельзя обновлять агрессивно;
+3. `analytics-worker`, если его лучше закреплять за отдельным пулом ресурсов.
+
 ## Поднят не тот API-сервис
 
 Если контейнер стартует, но отвечает “не тем” Swagger, не тем набором ручек или не тем `service.name`, проверяйте цепочку запуска сверху вниз:
