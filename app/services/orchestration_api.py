@@ -12,6 +12,6 @@ app = create_service_app(
         "отдает материализованное состояние выполнений."
     ),
     settings=settings,
-    runtime=get_runtime(),
+    runtime=get_runtime(modules=("orchestration",), service_name="orchestration-api"),
     modules=["orchestration"],
 )

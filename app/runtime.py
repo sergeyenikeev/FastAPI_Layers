@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import lru_cache
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -25,92 +25,116 @@ from app.modules.registry.commands import RegistryCommandService
 from app.modules.registry.queries import RegistryQueryService
 from app.projections.projector import ProjectionService
 
+API_MODULES = frozenset({"registry", "orchestration", "monitoring", "alerting", "audit"})
+WORKER_MODULE = "workers"
+ALL_RUNTIME_MODULES = frozenset({*API_MODULES, WORKER_MODULE})
+T = TypeVar("T")
+
 
 class AppRuntime:
-    # AppRuntime играет роль application container для всего процесса API.
-    # Здесь один раз собираются сервисы, которые затем переиспользуются всеми
-    # request handlers. Это снижает связность API-слоя с деталями wiring и
-    # упрощает перенос модулей в отдельные сервисы в будущем.
+    # AppRuntime играет роль application container для конкретного процесса.
+    # После перехода к микросервисной топологии он больше не обязан поднимать весь
+    # dependency graph целиком: каждый API-сервис может создать только те bounded
+    # context dependencies, которые реально нужны его роутерам и health-слою.
     def __init__(
         self,
         settings: Settings,
+        *,
+        modules: frozenset[str] | None = None,
         session_factory: async_sessionmaker = SessionLocal,
         engine_override: Any = engine,
     ) -> None:
-        # Logging must be configured before any long-lived services are created so that
-        # startup diagnostics from the runtime, Kafka and workers all use one format.
         configure_logging()
         self.settings = settings
+        self.modules = modules or ALL_RUNTIME_MODULES
         self.session_factory = session_factory
         self.engine = engine_override
 
-        # Tests use an in-memory publisher to keep the same application wiring without
-        # requiring a real Kafka broker. Production and local dev use the real publisher.
+        # Publisher и health остаются общими почти для любого процесса: они нужны
+        # и API-сервисам, и worker-ам для записи событий и проверки зависимостей.
         self.publisher: PublisherProtocol = (
             InMemoryPublisher() if settings.app_env == "test" else EventPublisher(settings)
         )
-
-        # AppRuntime is the composition root: modules receive ready-to-use collaborators
-        # and stay isolated from configuration details and object construction concerns.
-        # Такой подход упрощает тестирование: модульные сервисы не знают, как
-        # именно создается publisher, engine или gateway, и потому легче
-        # заменяются на doubles и test fixtures.
-        self.audit_service = AuditService(self.publisher)
-        self.audit_queries = AuditQueryService()
-        self.registry_commands = RegistryCommandService(self.publisher, self.audit_service)
-        self.registry_queries = RegistryQueryService()
-
-        # Gateway инкапсулирует вызов внешнего model/inference слоя. Runtime
-        # держит его здесь как singleton процесса, чтобы orchestration-сервис
-        # зависел только от интерфейса, а не от способа интеграции.
-        self.model_gateway = ModelGateway()
-        self.execution_queries = ExecutionQueryService()
-
-        # ExecutionCommandService получает spawn_task, а не прямой event loop.
-        # Это сознательно связывает фоновый запуск workflow с runtime-контейнером,
-        # который умеет потом корректно остановить эти задачи.
-        self.execution_commands = ExecutionCommandService(
-            self.publisher,
-            self.audit_service,
-            self.model_gateway,
-            self.spawn_task,
-        )
-
-        # Health и monitoring сервисы собираются на уровне runtime, потому что
-        # они нужны сразу нескольким маршрутам и воркерам, а их зависимости
-        # пересекают границы модулей: DB, publisher, detectors и settings.
         self.health_service = HealthService(settings, self.engine, self.publisher)
-        self.monitoring_queries = MonitoringQueryService()
-        self.alert_queries = AlertQueryService()
 
-        # ProjectionService материализует read-side из event stream.
-        # Он не должен создаваться заново на каждый запрос, потому что
-        # projection handlers являются процессными зависимостями воркеров.
-        self.projector = ProjectionService()
+        # Эти поля инициализируются только если соответствующий bounded context
+        # включен в runtime. Такой подход снижает связность сервисов и упрощает
+        # дальнейший physical split по отдельным deployable units.
+        self.audit_service: AuditService | None = None
+        self.audit_queries: AuditQueryService | None = None
+        self.registry_commands: RegistryCommandService | None = None
+        self.registry_queries: RegistryQueryService | None = None
+        self.model_gateway: ModelGateway | None = None
+        self.execution_queries: ExecutionQueryService | None = None
+        self.execution_commands: ExecutionCommandService | None = None
+        self.monitoring_queries: MonitoringQueryService | None = None
+        self.alert_queries: AlertQueryService | None = None
+        self.projector: ProjectionService | None = None
+        self.anomaly_detection_service: AnomalyDetectionService | None = None
+        self.drift_detection_service: DriftDetectionService | None = None
+        self.alerting_service: AlertingService | None = None
 
-        # Детекторы собираются через factory-функции, чтобы набор правил можно
-        # было централизованно расширять без переписывания runtime wiring.
-        self.anomaly_detection_service = AnomalyDetectionService(
-            build_default_anomaly_detectors(
-                latency_zscore=settings.latency_spike_zscore,
-                cost_zscore=settings.cost_spike_zscore,
+        if self._needs_audit_write_side():
+            self.audit_service = AuditService(self.publisher)
+
+        if "audit" in self.modules:
+            self.audit_queries = AuditQueryService()
+
+        if "registry" in self.modules:
+            self.registry_queries = RegistryQueryService()
+            self.registry_commands = RegistryCommandService(
+                self.publisher,
+                self._require(self.audit_service, "audit_service"),
             )
-        )
-        self.drift_detection_service = DriftDetectionService(build_default_drift_detectors())
-        self.alerting_service = AlertingService(self.publisher, settings)
+
+        if "orchestration" in self.modules:
+            self.model_gateway = ModelGateway()
+            self.execution_queries = ExecutionQueryService()
+            self.execution_commands = ExecutionCommandService(
+                self.publisher,
+                self._require(self.audit_service, "audit_service"),
+                self.model_gateway,
+                self.spawn_task,
+            )
+
+        if "monitoring" in self.modules:
+            self.monitoring_queries = MonitoringQueryService()
+
+        if "alerting" in self.modules:
+            self.alert_queries = AlertQueryService()
+
+        if WORKER_MODULE in self.modules:
+            self.projector = ProjectionService()
+            self.anomaly_detection_service = AnomalyDetectionService(
+                build_default_anomaly_detectors(
+                    latency_zscore=settings.latency_spike_zscore,
+                    cost_zscore=settings.cost_spike_zscore,
+                )
+            )
+            self.drift_detection_service = DriftDetectionService(build_default_drift_detectors())
+            self.alerting_service = AlertingService(self.publisher, settings)
 
         # Здесь хранятся detached background tasks, которые были запущены из
         # HTTP-контекста, но продолжают работать уже после возврата ответа API.
         self._background_tasks: set[asyncio.Task[None]] = set()
 
+    def _needs_audit_write_side(self) -> bool:
+        # Audit write-side нужен только сервисам, которые сами эмитят команды и
+        # обязаны формировать audit trail: registry и orchestration.
+        return "registry" in self.modules or "orchestration" in self.modules
+
+    @staticmethod
+    def _require(value: T | None, name: str) -> T:
+        # Если роутер или runtime wiring попытается использовать сервис, который
+        # не включен в текущий microservice runtime, лучше упасть явно и рано.
+        if value is None:
+            raise RuntimeError(f"Runtime service '{name}' is not enabled for this process")
+        return value
+
     async def startup(self) -> None:
-        # Starting the publisher eagerly avoids paying the connection cost on the first
-        # write request and makes startup problems visible during boot, not at runtime.
         await self.publisher.start()
 
     async def shutdown(self) -> None:
-        # We cancel spawned workflow tasks first so shutdown does not leave dangling
-        # coroutines that still try to publish events while transports are closing.
         for task in list(self._background_tasks):
             task.cancel()
         if self._background_tasks:
@@ -118,22 +142,23 @@ class AppRuntime:
         await self.publisher.stop()
 
     def spawn_task(self, coro: Any) -> asyncio.Task[None]:
-        # Background execution runs detached from the HTTP request lifecycle, but we
-        # still track tasks here to support graceful shutdown and avoid silent leaks.
         task = asyncio.create_task(coro)
         self._background_tasks.add(task)
-
-        # Callback удаляет завершенную задачу из внутреннего набора, чтобы
-        # runtime не копил "мертвые" ссылки и набор отражал только реально
-        # живущие фоновые корутины.
         task.add_done_callback(lambda completed: self._background_tasks.discard(completed))
         return task
 
 
-@lru_cache(maxsize=1)
-def get_runtime() -> AppRuntime:
-    # Runtime кэшируется как singleton на процесс. Это важно для согласованности:
-    # один publisher, один набор сервисов и единый жизненный цикл на весь API.
-    # Без этого разные import path могли бы случайно создать независимые runtime
-    # экземпляры с дублирующими Kafka-подключениями и несогласованным shutdown.
-    return AppRuntime(get_settings())
+@lru_cache(maxsize=16)
+def get_runtime(
+    modules: tuple[str, ...] | None = None,
+    *,
+    service_name: str | None = None,
+) -> AppRuntime:
+    # Runtime кэшируется отдельно для каждой сервисной сборки. Это позволяет
+    # поднять в одном кодовом базисе несколько entrypoint-ов с разным набором
+    # зависимостей, но сохранить singleton-семантику внутри процесса.
+    normalized_modules = frozenset(modules or ALL_RUNTIME_MODULES)
+    settings = get_settings()
+    if service_name is not None:
+        settings = settings.model_copy(update={"service_name": service_name})
+    return AppRuntime(settings, modules=normalized_modules)

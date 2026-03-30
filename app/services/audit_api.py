@@ -9,6 +9,6 @@ app = create_service_app(
     title="Workflow Audit Service",
     description="Микросервис доступа к audit trail и трассировке изменений.",
     settings=settings,
-    runtime=get_runtime(),
+    runtime=get_runtime(modules=("audit",), service_name="audit-api"),
     modules=["audit"],
 )

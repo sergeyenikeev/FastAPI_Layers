@@ -9,6 +9,6 @@ app = create_service_app(
     title="Workflow Alerting Service",
     description="Микросервис просмотра и эксплуатации alert-сущностей платформы.",
     settings=settings,
-    runtime=get_runtime(),
+    runtime=get_runtime(modules=("alerting",), service_name="alerting-api"),
     modules=["alerting"],
 )

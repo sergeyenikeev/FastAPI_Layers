@@ -12,6 +12,6 @@ app = create_service_app(
         "моделей, графов, deployment-ов, инструментов и окружений."
     ),
     settings=settings,
-    runtime=get_runtime(),
+    runtime=get_runtime(modules=("registry",), service_name="registry-api"),
     modules=["registry"],
 )

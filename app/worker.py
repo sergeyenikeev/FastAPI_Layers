@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 async def heartbeat_loop(role: str) -> None:
     # Heartbeat публикуется отдельной корутиной, чтобы платформа видела не
     # только бизнес-события, но и сам факт жизни worker-процесса по ролям.
-    runtime = get_runtime()
+    runtime = get_runtime(modules=("workers",))
     while True:
         await runtime.publisher.publish(
             SYSTEM_HEALTH_TOPIC,
@@ -43,8 +43,12 @@ async def run() -> None:
     # Это главный entrypoint worker-процесса. В отличие от API runtime, здесь
     # поднимаются consumer workers по выбранной роли и затем процесс живет в
     # бесконечном event loop до graceful shutdown.
-    runtime = get_runtime()
+    runtime = get_runtime(modules=("workers",))
     await runtime.startup()
+    assert runtime.projector is not None
+    assert runtime.anomaly_detection_service is not None
+    assert runtime.drift_detection_service is not None
+    assert runtime.alerting_service is not None
     workers_by_role = build_workers(
         settings=runtime.settings,
         session_factory=runtime.session_factory,

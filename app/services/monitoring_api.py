@@ -12,6 +12,6 @@ app = create_service_app(
         "anomaly и drift read models."
     ),
     settings=settings,
-    runtime=get_runtime(),
+    runtime=get_runtime(modules=("monitoring",), service_name="monitoring-api"),
     modules=["monitoring"],
 )

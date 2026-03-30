@@ -91,8 +91,8 @@ async def client(runtime: AppRuntime) -> AsyncIterator[AsyncClient]:
         async with runtime.session_factory() as session:
             yield session
 
-    runtime_module.get_runtime = lambda: runtime  # type: ignore[assignment]
-    app.main.get_runtime = lambda: runtime  # type: ignore[assignment]
+    runtime_module.get_runtime = lambda *args, **kwargs: runtime  # type: ignore[assignment]
+    app.main.get_runtime = lambda *args, **kwargs: runtime  # type: ignore[assignment]
     security_module.get_settings = lambda: runtime.settings  # type: ignore[assignment]
 
     app_instance = create_app()
