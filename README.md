@@ -1,6 +1,6 @@
 # Платформа эксплуатации сценариев
 
-Централизованная платформа, готовая к промышленной эксплуатации и быстрому выводу распределенных сценариев в продакшен. Репозиторий теперь поддерживает микросервисную топологию: отдельные API-сервисы для `registry`, `orchestration`, `monitoring`, `alerting`, `audit`, а также отдельные worker-сервисы для `projection`, `analytics` и `alerts`. Общий compatibility-gateway на `:8080` оставлен как переходный слой для обратной совместимости.
+Централизованная платформа, готовая к промышленной эксплуатации и быстрому выводу распределенных сценариев в продакшен. Репозиторий теперь поддерживает микросервисную топологию: отдельные API-сервисы для `registry`, `orchestration`, `monitoring`, `alerting`, `audit`, а также отдельные worker-сервисы для `projection`, `analytics`, `alerts` и `execution`. Общий compatibility-gateway на `:8080` оставлен как переходный слой для обратной совместимости.
 
 ## Назначение
 
@@ -66,6 +66,7 @@
 - `projection-worker`
 - `analytics-worker`
 - `alerts-worker`
+- `execution-worker`
 
 `gateway-api` сохранен как совместимый вход для переходного периода, чтобы существующие интеграции и локальные сценарии не ломались одномоментно.
 
@@ -78,7 +79,7 @@
 - `monitoring-api` поднимает только monitoring query layer и health;
 - `alerting-api` поднимает только alert query layer и health;
 - `audit-api` поднимает только audit query layer и health;
-- `worker` поднимает только event consumers, projector, anomaly/drift detector-ы и alert processing;
+- `worker` поднимает только event consumers, projector, anomaly/drift detector-ы, alert processing и execution runtime;
 - `gateway-api` агрегирует все API bounded context-ы как переходный compatibility layer.
 
 Это уменьшает связность сервисов и делает архитектуру ближе к настоящему production-ready split, а не только к логическому разбиению в коде.

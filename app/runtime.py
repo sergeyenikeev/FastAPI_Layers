@@ -87,8 +87,10 @@ class AppRuntime:
                 self._require(self.audit_service, "audit_service"),
             )
 
-        if "orchestration" in self.modules:
+        if "orchestration" in self.modules or WORKER_MODULE in self.modules:
             self.model_gateway = ModelGateway()
+
+        if "orchestration" in self.modules:
             self.execution_queries = ExecutionQueryService()
             self.execution_commands = ExecutionCommandService(
                 self.publisher,
@@ -113,6 +115,12 @@ class AppRuntime:
             )
             self.drift_detection_service = DriftDetectionService(build_default_drift_detectors())
             self.alerting_service = AlertingService(self.publisher, settings)
+            self.execution_commands = ExecutionCommandService(
+                self.publisher,
+                self._require(self.audit_service, "audit_service"),
+                self._require(self.model_gateway, "model_gateway"),
+                self.spawn_task,
+            )
 
         # Здесь хранятся detached background tasks, которые были запущены из
         # HTTP-контекста, но продолжают работать уже после возврата ответа API.
@@ -121,7 +129,11 @@ class AppRuntime:
     def _needs_audit_write_side(self) -> bool:
         # Audit write-side нужен только сервисам, которые сами эмитят команды и
         # обязаны формировать audit trail: registry и orchestration.
-        return "registry" in self.modules or "orchestration" in self.modules
+        return (
+            "registry" in self.modules
+            or "orchestration" in self.modules
+            or WORKER_MODULE in self.modules
+        )
 
     @staticmethod
     def _require(value: T | None, name: str) -> T:

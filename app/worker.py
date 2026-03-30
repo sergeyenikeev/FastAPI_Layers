@@ -49,6 +49,7 @@ async def run() -> None:
     assert runtime.anomaly_detection_service is not None
     assert runtime.drift_detection_service is not None
     assert runtime.alerting_service is not None
+    assert runtime.execution_commands is not None
     workers_by_role = build_workers(
         settings=runtime.settings,
         session_factory=runtime.session_factory,
@@ -57,6 +58,7 @@ async def run() -> None:
         anomaly_detection_service=runtime.anomaly_detection_service,
         drift_detection_service=runtime.drift_detection_service,
         alerting_service=runtime.alerting_service,
+        execution_service=runtime.execution_commands,
     )
 
     selected_roles = (

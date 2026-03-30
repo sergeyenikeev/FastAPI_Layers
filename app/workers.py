@@ -7,7 +7,12 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
-from app.core.context import get_correlation_id, get_trace_id
+from app.core.context import (
+    ensure_correlation_id,
+    get_correlation_id,
+    get_trace_id,
+    set_trace_id,
+)
 from app.core.logging import get_logger
 from app.db.base import utc_now
 from app.db.models import CostRecord, MetricSample
@@ -29,6 +34,7 @@ from app.messaging.topics import (
 from app.modules.alerting.service import AlertingService
 from app.modules.monitoring.anomaly import AnomalyDetectionService
 from app.modules.monitoring.drift import DriftDetectionService
+from app.modules.orchestration.service import ExecutionCommandService
 from app.projections.projector import ProjectionService
 
 logger = get_logger(__name__)
@@ -326,6 +332,26 @@ class AlertHandler:
             )
 
 
+class ExecutionHandler:
+    # Execution handler переносит фактическое выполнение LangGraph из API процесса
+    # в отдельный consumer. API теперь только принимает команду и публикует
+    # execution.started, а этот worker берет событие и завершает run до terminal state.
+    def __init__(self, service: ExecutionCommandService) -> None:
+        self.service = service
+
+    async def __call__(
+        self, event: EventEnvelope, _record: Any, _session: AsyncSession
+    ) -> None:
+        if event.event_type != "execution.started":
+            return
+
+        # Корреляционный контекст восстанавливается из event envelope, чтобы все
+        # последующие step/metric/cost/terminal events продолжали тот же trace trail.
+        ensure_correlation_id(event.correlation_id)
+        set_trace_id(event.trace_id)
+        await self.service.run_execution_started_event(event)
+
+
 def build_workers(
     *,
     settings: Settings,
@@ -335,6 +361,7 @@ def build_workers(
     anomaly_detection_service: AnomalyDetectionService,
     drift_detection_service: DriftDetectionService,
     alerting_service: AlertingService,
+    execution_service: ExecutionCommandService,
 ) -> dict[str, list[BaseConsumerWorker]]:
     # build_workers задает фактическую topology worker runtime: какие consumer
     # группы существуют, какие topics они читают и какие handler-ы запускают.
@@ -404,6 +431,19 @@ def build_workers(
                 group_id="alert-consumers",
                 topics=[ANOMALY_EVENTS_TOPIC, DRIFT_EVENTS_TOPIC],
                 handler=cast(EventHandler, AlertHandler(alerting_service)),
+                session_factory=session_factory,
+                publisher=publisher,
+                settings=settings,
+            )
+        ],
+        "execution": [
+            # Execution role отделяет тяжелый workflow runtime от HTTP path. Это снижает
+            # задержку API и позволяет масштабировать запуск LangGraph независимо.
+            BaseConsumerWorker(
+                name="execution-worker",
+                group_id="execution-consumers",
+                topics=[AGENT_EXECUTIONS_TOPIC],
+                handler=cast(EventHandler, ExecutionHandler(execution_service)),
                 session_factory=session_factory,
                 publisher=publisher,
                 settings=settings,

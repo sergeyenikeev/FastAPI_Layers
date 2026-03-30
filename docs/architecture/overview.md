@@ -21,6 +21,7 @@
 - `projection-worker` — consumer materialized read-side в PostgreSQL
 - `analytics-worker` — consumer secondary metrics, anomaly и drift pipelines
 - `alerts-worker` — consumer alert processing и deduplication
+- `execution-worker` — consumer, который подхватывает `execution.started` и выполняет LangGraph вне HTTP-процесса
 
 ### Схема выполнения сценария
 
@@ -82,9 +83,11 @@ flowchart LR
 | `monitoring-api` | `MonitoringQueryService`, `HealthService` | command-side registry/orchestration, `ModelGateway`, projector, detector-ы |
 | `alerting-api` | `AlertQueryService`, `HealthService` | alert processing worker logic, command-side сервисы, projector |
 | `audit-api` | `AuditQueryService`, `HealthService` | command-side audit emitters, orchestration и registry зависимости |
-| `worker` | publisher, `ProjectionService`, anomaly/drift detector-ы, `AlertingService` | HTTP-роутеры и API query/command сервисы |
+| `worker` | publisher, `ProjectionService`, anomaly/drift detector-ы, `AlertingService`, `ExecutionCommandService`, `ModelGateway` | HTTP-роутеры и API query/command сервисы |
 
 Такой разрез уменьшает связность процессов, снижает лишнюю инициализацию зависимостей и делает следующий шаг к полному physical split проще: код уже знает, какие сервисы действительно принадлежат конкретному deployable unit.
+
+После выноса `execution-worker` orchestration API больше не обязан исполнять LangGraph внутри HTTP-процесса. Его задача — принять команду, зафиксировать `execution.started` и передать фактическое выполнение в Kafka-backed worker-контур. Это уменьшает latency API, делает запуск сценариев более устойчивым к всплескам нагрузки и позволяет масштабировать execution-путь отдельно от read/query API.
 
 Это дает несколько важных эффектов:
 

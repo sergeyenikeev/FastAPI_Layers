@@ -325,5 +325,27 @@ services:
       kafka:
         condition: service_healthy
 
+  worker-execution:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file:
+      - .env
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: postgresql+asyncpg://workflow_user:${POSTGRES_PASSWORD:-replace-me}@postgres:5432/workflow_db
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: '["kafka:9092"]'
+      WORKER_ROLE: execution
+      SERVICE_NAME: execution-worker
+    command: ["/bin/sh", "docker/start-worker.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
 volumes:
   postgres_data:

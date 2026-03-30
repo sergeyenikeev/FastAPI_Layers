@@ -38,7 +38,7 @@ helm upgrade --install workflow-platform helm/workflow-platform \
 - отдельный `Deployment` для каждого API bounded context;
 - отдельный `Service` для каждого API bounded context;
 - отдельный `HPA` и `ServiceMonitor` для каждого API bounded context;
-- отдельные worker deployment-ы для `projection`, `analytics`, `alerts`;
+- отдельные worker deployment-ы для `projection`, `analytics`, `alerts`, `execution`;
 - `KEDA ScaledObject` для worker deployment-ов;
 - migration job, network policy и ingress.
 
@@ -52,7 +52,8 @@ helm upgrade --install workflow-platform helm/workflow-platform \
 - `alerting-api` поднимает только alerting runtime;
 - `audit-api` поднимает только audit runtime;
 - `gateway-api` остается совместимым агрегирующим слоем;
-- worker deployment-ы поднимают только worker runtime без HTTP bounded context-ов.
+- worker deployment-ы поднимают только worker runtime без HTTP bounded context-ов;
+- `execution-worker` выполняет LangGraph после получения события `execution.started`, не нагружая API-процесс долгими workflow-задачами.
 
 Это важно для эксплуатации, потому что:
 

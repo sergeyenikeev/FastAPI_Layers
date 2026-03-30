@@ -57,6 +57,14 @@
 3. проверить env `APP_COMPONENT` и `SERVICE_NAME`
 4. проверить, что pod labels и service selector совпадают
 
+## Запуски зависли в статусе running
+
+1. Проверьте, что `execution-worker` действительно запущен и публикует heartbeat в `worker_heartbeats`
+2. Выполните `uv run python scripts/kafka_debug.py describe-group execution-consumers`
+3. Если lag растет, а consumer не двигается, проверьте логи процесса с `WORKER_ROLE=execution`
+4. Если `execution.started` есть, но нет `execution.finished` или `execution.failed`, проверьте DLQ и логи execution worker
+5. Если execution worker не поднят, API будет принимать команды, но фактическое выполнение LangGraph не начнется
+
 ## Сервис не виден в Prometheus
 
 Если сервис работает, но его нет в Prometheus:

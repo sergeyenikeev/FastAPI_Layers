@@ -19,7 +19,7 @@ from app.db.models import Deployment, ModelVersion
 from app.domain.enums import ExecutionStatus
 from app.domain.events import EventEnvelope
 from app.domain.schemas import CommandAccepted
-from app.messaging.kafka import PublisherProtocol
+from app.messaging.kafka import InMemoryPublisher, PublisherProtocol
 from app.messaging.topics import (
     AGENT_EXECUTIONS_TOPIC,
     AGENT_STEPS_TOPIC,
@@ -97,14 +97,16 @@ class ExecutionCommandService:
                 }
 
         execution_run_id = str(uuid4())
+        correlation_id = get_correlation_id()
+        trace_id = get_trace_id()
 
         # execution.started публикуется до реального выполнения workflow. Это дает
         # системе ранний observable trace запуска и позволяет projections заранее
         # создать execution_run даже если сам workflow займет заметное время.
         event = EventEnvelope(
             event_type="execution.started",
-            correlation_id=get_correlation_id(),
-            trace_id=get_trace_id(),
+            correlation_id=correlation_id,
+            trace_id=trace_id,
             source="api.orchestration",
             entity_id=execution_run_id,
             payload={
@@ -117,11 +119,17 @@ class ExecutionCommandService:
                     "output_payload": None,
                     "started_at": utc_now(),
                     "finished_at": None,
-                    "correlation_id": get_correlation_id(),
-                    "trace_id": get_trace_id(),
+                    "correlation_id": correlation_id,
+                    "trace_id": trace_id,
                     "error_message": None,
                 },
                 "metadata": payload.metadata,
+                "runtime_context": {
+                    "deployment_id": payload.deployment_id,
+                    "graph_definition_id": graph_definition_id,
+                    "input_payload": payload.input_payload,
+                    "model_context": model_context,
+                },
             },
             metadata={"aggregate": "execution"},
         )
@@ -133,22 +141,40 @@ class ExecutionCommandService:
             payload=event.payload,
         )
 
-        # The API acknowledges the command immediately. The actual workflow continues in
-        # background so the HTTP path stays fast and the execution model remains async.
-        self.task_spawner(
-            self._run_workflow(
-                execution_run_id=execution_run_id,
-                deployment_id=payload.deployment_id,
-                graph_definition_id=graph_definition_id,
-                input_payload=payload.input_payload,
-                model_context=model_context,
+        # В тестовом контуре workflow продолжает исполняться in-process, чтобы не
+        # требовать отдельного execution worker для unit/integration сценариев.
+        # В реальном окружении фактическое выполнение забирает отдельный consumer.
+        if isinstance(self.publisher, InMemoryPublisher):
+            self.task_spawner(
+                self._run_workflow(
+                    execution_run_id=execution_run_id,
+                    deployment_id=payload.deployment_id,
+                    graph_definition_id=graph_definition_id,
+                    input_payload=payload.input_payload,
+                    model_context=model_context,
+                    correlation_id=correlation_id,
+                    trace_id=trace_id,
+                )
             )
-        )
         return CommandAccepted(
             entity_id=execution_run_id,
             event_id=event.event_id,
             event_type=event.event_type,
             correlation_id=event.correlation_id,
+        )
+
+    async def run_execution_started_event(self, event: EventEnvelope) -> None:
+        # Execution worker переиспользует тот же orchestration service, но запускает
+        # workflow уже по Kafka-событию, а не в исходном HTTP request lifecycle.
+        runtime_context = event.payload.get("runtime_context", {})
+        await self._run_workflow(
+            execution_run_id=event.entity_id,
+            deployment_id=runtime_context.get("deployment_id"),
+            graph_definition_id=runtime_context.get("graph_definition_id"),
+            input_payload=dict(runtime_context.get("input_payload", {})),
+            model_context=dict(runtime_context.get("model_context", {})),
+            correlation_id=event.correlation_id,
+            trace_id=event.trace_id,
         )
 
     async def _load_deployment(
@@ -174,12 +200,20 @@ class ExecutionCommandService:
         graph_definition_id: str | None,
         input_payload: dict[str, Any],
         model_context: dict[str, Any],
+        correlation_id: str,
+        trace_id: str,
     ) -> None:
         # Workflow исполняется в фоне, уже вне HTTP request lifecycle.
         # Здесь происходит реальная orchestration-работа и публикация terminal events.
         ACTIVE_EXECUTIONS.inc()
         workflow = ExecutionWorkflow(
-            self.model_gateway, self._step_emitter(execution_run_id, model_context)
+            self.model_gateway,
+            self._step_emitter(
+                execution_run_id,
+                model_context,
+                correlation_id=correlation_id,
+                trace_id=trace_id,
+            ),
         )
         try:
             # ExecutionState is the handoff contract between command-side orchestration
@@ -196,8 +230,8 @@ class ExecutionCommandService:
             result = await workflow.invoke(state)
             finished_event = EventEnvelope(
                 event_type="execution.finished",
-                correlation_id=get_correlation_id(),
-                trace_id=get_trace_id(),
+                correlation_id=correlation_id,
+                trace_id=trace_id,
                 source="worker.orchestration",
                 entity_id=execution_run_id,
                 payload={
@@ -224,8 +258,8 @@ class ExecutionCommandService:
             )
             failed_event = EventEnvelope(
                 event_type="execution.failed",
-                correlation_id=get_correlation_id(),
-                trace_id=get_trace_id(),
+                correlation_id=correlation_id,
+                trace_id=trace_id,
                 source="worker.orchestration",
                 entity_id=execution_run_id,
                 payload={
@@ -251,6 +285,9 @@ class ExecutionCommandService:
         self,
         execution_run_id: str,
         model_context: dict[str, Any],
+        *,
+        correlation_id: str,
+        trace_id: str,
     ) -> Callable[[str, str, dict[str, Any], dict[str, Any], int, float], Awaitable[None]]:
         # Step emitter — мост между LangGraph node handlers и event backbone.
         # Сами node handlers не знают ничего о Kafka topics, metric events или
@@ -274,8 +311,8 @@ class ExecutionCommandService:
 
             event = EventEnvelope(
                 event_type="step.completed",
-                correlation_id=get_correlation_id(),
-                trace_id=get_trace_id(),
+                correlation_id=correlation_id,
+                trace_id=trace_id,
                 source="worker.orchestration",
                 entity_id=str(uuid4()),
                 payload={
@@ -291,7 +328,7 @@ class ExecutionCommandService:
                         "token_usage_total": token_usage_total,
                         "started_at": started_at,
                         "finished_at": finished_at,
-                        "trace_id": get_trace_id(),
+                        "trace_id": trace_id,
                     }
                 },
                 metadata={"aggregate": "execution_step"},
@@ -302,10 +339,20 @@ class ExecutionCommandService:
             ).observe(duration_ms / 1000)
 
             await self._publish_metric(
-                "step_duration_ms", "execution_step", execution_run_id, duration_ms
+                "step_duration_ms",
+                "execution_step",
+                execution_run_id,
+                duration_ms,
+                correlation_id=correlation_id,
+                trace_id=trace_id,
             )
             await self._publish_metric(
-                "step_token_usage", "execution_step", execution_run_id, token_usage_total
+                "step_token_usage",
+                "execution_step",
+                execution_run_id,
+                token_usage_total,
+                correlation_id=correlation_id,
+                trace_id=trace_id,
             )
 
             if telemetry:
@@ -317,25 +364,31 @@ class ExecutionCommandService:
                     "model",
                     model_name,
                     float(telemetry.get("latency_ms", duration_ms)),
+                    correlation_id=correlation_id,
+                    trace_id=trace_id,
                 )
                 await self._publish_metric(
                     "model_token_input",
                     "model",
                     model_name,
                     float(telemetry.get("token_input", 0)),
+                    correlation_id=correlation_id,
+                    trace_id=trace_id,
                 )
                 await self._publish_metric(
                     "model_token_output",
                     "model",
                     model_name,
                     float(telemetry.get("token_output", 0)),
+                    correlation_id=correlation_id,
+                    trace_id=trace_id,
                 )
                 await self.publisher.publish(
                     MODEL_INFERENCE_TOPIC,
                     EventEnvelope(
                         event_type="model.inference.recorded",
-                        correlation_id=get_correlation_id(),
-                        trace_id=get_trace_id(),
+                        correlation_id=correlation_id,
+                        trace_id=trace_id,
                         source="worker.orchestration",
                         entity_id=execution_run_id,
                         payload={
@@ -361,8 +414,8 @@ class ExecutionCommandService:
                     COST_EVENTS_TOPIC,
                     EventEnvelope(
                         event_type="cost.recorded",
-                        correlation_id=get_correlation_id(),
-                        trace_id=get_trace_id(),
+                        correlation_id=correlation_id,
+                        trace_id=trace_id,
                         source="worker.orchestration",
                         entity_id=execution_run_id,
                         payload={
@@ -389,6 +442,9 @@ class ExecutionCommandService:
         entity_type: str,
         entity_id: str,
         value: float,
+        *,
+        correlation_id: str,
+        trace_id: str,
     ) -> None:
         # Metrics are emitted as events as well, which keeps monitoring on the same
         # event backbone and allows projections or detectors to consume them uniformly.
@@ -396,8 +452,8 @@ class ExecutionCommandService:
             SYSTEM_METRICS_TOPIC,
             EventEnvelope(
                 event_type="metric.recorded",
-                correlation_id=get_correlation_id(),
-                trace_id=get_trace_id(),
+                correlation_id=correlation_id,
+                trace_id=trace_id,
                 source="worker.orchestration",
                 entity_id=entity_id,
                 payload={

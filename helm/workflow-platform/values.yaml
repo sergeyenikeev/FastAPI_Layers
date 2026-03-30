@@ -191,6 +191,19 @@ workers:
       limits:
         cpu: 500m
         memory: 512Mi
+  - name: execution
+    enabled: true
+    replicaCount: 1
+    role: execution
+    consumerGroup: execution-consumers
+    primaryTopic: agent.executions
+    resources:
+      requests:
+        cpu: 300m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
 
 ingress:
   # Ingress включен по умолчанию, потому что публичный API — основной способ
