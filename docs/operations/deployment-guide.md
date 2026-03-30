@@ -123,6 +123,8 @@ apiServices:
 - `gateway` должен держать больше реплик, чем внутренние API;
 - `orchestration-api` можно держать компактнее, потому что тяжелое выполнение уже вынесено в `execution-worker`;
 - `orchestration-query-api` нужно масштабировать отдельно под read-traffic.
+- `registry-api` или `audit-api` нужно закрепить на специальных нодах или с особыми tolerations;
+- конкретному сервису нужен другой `terminationGracePeriodSeconds` или собственные pod annotations.
 
 Пример:
 
@@ -163,6 +165,33 @@ apiServices:
 ```
 
 Если эти поля не заданы, сервис наследует глобальные значения из `api.*` и `autoscaling.*`. Для этого оставляйте `resources: {}`, `probes: {}` и `autoscaling: {}`.
+
+Точно так же можно переопределять placement и rollout-параметры:
+
+```yaml
+apiServices:
+  - name: registry
+    enabled: true
+    terminationGracePeriodSeconds: 60
+    podAnnotations:
+      cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    nodeSelector:
+      workload-tier: internal-api
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "internal-api"
+        effect: "NoSchedule"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: topology.kubernetes.io/zone
+              labelSelector:
+                matchLabels:
+                  component: registry
+```
 
 Если нужно оставить глобальный HPA включенным, но отключить его у конкретного сервиса, используйте:
 

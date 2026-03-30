@@ -41,7 +41,7 @@
 Если один API-сервис нужно тюнить иначе, чем остальные:
 
 1. добавьте override прямо в нужный элемент `apiServices[]`;
-2. используйте `replicaCount`, `resources`, `probes` и `autoscaling`;
+2. используйте `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `nodeSelector`, `tolerations` и `affinity`;
 3. выполните `helm upgrade`;
 4. проверьте итоговые `Deployment` и `HPA`;
 5. убедитесь, что health probes соответствуют реальному runtime конкретного сервиса.
@@ -54,6 +54,9 @@ apiServices:
     autoscaling: {}
     resources: {}
     probes: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
 ```
 
 Особенно часто это нужно для:

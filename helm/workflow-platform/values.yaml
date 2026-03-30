@@ -101,6 +101,11 @@ apiServices:
     replicaCount: null
     resources: {}
     probes: {}
+    terminationGracePeriodSeconds: null
+    podAnnotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
     # Пустой объект означает "унаследовать глобальный autoscaling.*" без
     # неявного сброса enabled в null.
     autoscaling: {}
@@ -121,6 +126,11 @@ apiServices:
     replicaCount: null
     resources: {}
     probes: {}
+    terminationGracePeriodSeconds: null
+    podAnnotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
     autoscaling: {}
     ingress:
       enabled: false
@@ -145,6 +155,11 @@ apiServices:
         cpu: "1"
         memory: 768Mi
     probes: {}
+    terminationGracePeriodSeconds: null
+    podAnnotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
     autoscaling:
       enabled: true
       minReplicas: 2
@@ -173,6 +188,11 @@ apiServices:
         cpu: "1"
         memory: 1Gi
     probes: {}
+    terminationGracePeriodSeconds: null
+    podAnnotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
     autoscaling:
       enabled: true
       minReplicas: 2
@@ -199,6 +219,11 @@ apiServices:
     replicaCount: null
     resources: {}
     probes: {}
+    terminationGracePeriodSeconds: null
+    podAnnotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
     autoscaling: {}
     ingress:
       enabled: false
@@ -217,6 +242,11 @@ apiServices:
     replicaCount: null
     resources: {}
     probes: {}
+    terminationGracePeriodSeconds: null
+    podAnnotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
     autoscaling: {}
     ingress:
       enabled: false
@@ -235,6 +265,11 @@ apiServices:
     replicaCount: null
     resources: {}
     probes: {}
+    terminationGracePeriodSeconds: null
+    podAnnotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
     autoscaling: {}
     ingress:
       enabled: false

@@ -1,5 +1,13 @@
 {{- range $service := .Values.apiServices }}
 {{- if $service.enabled }}
+{{- $effectiveReplicaCount := default $.Values.api.replicaCount $service.replicaCount }}
+{{- $effectiveTerminationGracePeriodSeconds := default $.Values.api.terminationGracePeriodSeconds $service.terminationGracePeriodSeconds }}
+{{- $effectivePodAnnotations := mergeOverwrite (deepCopy $.Values.api.podAnnotations) (default (dict) $service.podAnnotations) }}
+{{- $effectiveResources := default $.Values.api.resources $service.resources }}
+{{- $effectiveProbes := mergeOverwrite (deepCopy $.Values.api.probes) (default (dict) $service.probes) }}
+{{- $effectiveNodeSelector := mergeOverwrite (deepCopy $.Values.api.nodeSelector) (default (dict) $service.nodeSelector) }}
+{{- $effectiveTolerations := concat $.Values.api.tolerations (default (list) $service.tolerations) }}
+{{- $effectiveAffinity := mergeOverwrite (deepCopy $.Values.api.affinity) (default (dict) $service.affinity) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,7 +18,7 @@ metadata:
 spec:
   # API deployment остается stateless: состояние execution и projections живет
   # вне пода, поэтому rolling updates безопасны при корректных probes.
-  replicas: {{ default $.Values.api.replicaCount $service.replicaCount }}
+  replicas: {{ $effectiveReplicaCount }}
   revisionHistoryLimit: 5
   strategy:
     type: RollingUpdate
@@ -32,7 +40,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "8080"
-        {{- toYaml $.Values.api.podAnnotations | nindent 8 }}
+        {{- toYaml $effectivePodAnnotations | nindent 8 }}
     spec:
       {{- if $.Values.imagePullSecrets }}
       imagePullSecrets:
@@ -41,11 +49,17 @@ spec:
       serviceAccountName: {{ include "agentOps.serviceAccountName" $ }}
       # У приложения есть время корректно завершить HTTP-запросы и закрыть
       # Kafka/DB подключения до SIGKILL.
-      terminationGracePeriodSeconds: {{ $.Values.api.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ $effectiveTerminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml $.Values.podSecurityContext | nindent 8 }}
-      {{- $effectiveResources := default $.Values.api.resources $service.resources }}
-      {{- $effectiveProbes := mergeOverwrite (deepCopy $.Values.api.probes) (default (dict) $service.probes) }}
+      {{- if $effectiveNodeSelector }}
+      nodeSelector:
+        {{- toYaml $effectiveNodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if $effectiveTolerations }}
+      tolerations:
+        {{- toYaml $effectiveTolerations | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ $service.name }}
           image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
@@ -97,9 +111,13 @@ spec:
             initialDelaySeconds: {{ $effectiveProbes.readiness.initialDelaySeconds }}
             periodSeconds: {{ $effectiveProbes.readiness.periodSeconds }}
             failureThreshold: {{ $effectiveProbes.readiness.failureThreshold }}
+      {{- if $effectiveAffinity }}
+      affinity:
+        {{- toYaml $effectiveAffinity | nindent 8 }}
+      {{- else }}
       affinity:
         podAntiAffinity:
-          # Предпочтительно раскладываем API по разным нодам, чтобы одиночный
+          # По умолчанию раскладываем API по разным нодам, чтобы одиночный
           # node failure не уронил весь публичный вход в платформу.
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
@@ -109,6 +127,7 @@ spec:
                   matchLabels:
                     {{- include "agentOps.selectorLabels" $ | nindent 20 }}
                     component: {{ $service.name }}
+      {{- end }}
 ---
 {{- end }}
 {{- end }}

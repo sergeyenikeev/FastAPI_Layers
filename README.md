@@ -74,7 +74,7 @@
 
 По умолчанию Helm публикует наружу только `gateway`. Если внутренним клиентам нужен прямой доступ к `orchestration-query-api`, это включается отдельным service-specific ingress через `apiServices[].ingress.separateIngress=true` без смешивания с публичным gateway-маршрутом. Для такого ingress теперь можно задать собственные `hosts`, `annotations`, `className` и `tls`, не затрагивая внешний gateway.
 
-Точно так же на уровне конкретного API-сервиса теперь можно отдельно переопределять `replicaCount`, `resources`, `probes` и `autoscaling`, не копируя весь глобальный профиль `api.*`. Если сервис должен наследовать глобальные настройки HPA, оставляйте `autoscaling: {}`. Если HPA для конкретного сервиса нужно выключить, задавайте `autoscaling.enabled: false`.
+Точно так же на уровне конкретного API-сервиса теперь можно отдельно переопределять `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `podAnnotations`, `nodeSelector`, `tolerations` и `affinity`, не копируя весь глобальный профиль `api.*`. Если сервис должен наследовать глобальные настройки HPA, оставляйте `autoscaling: {}`. Если HPA для конкретного сервиса нужно выключить, задавайте `autoscaling.enabled: false`.
 
 ### Service-specific runtime
 
