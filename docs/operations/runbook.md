@@ -17,6 +17,23 @@
 2. Убедитесь в доступности PostgreSQL, Redis и Kafka
 3. Проверьте сигналы heartbeat рабочих процессов в таблице `worker_heartbeats`
 
+## Нужно отдельно опубликовать orchestration-query-api
+
+Если внутренним клиентам нужен прямой доступ к `GET /api/v1/executions*`, но публичный gateway менять не хочется:
+
+1. включите у `orchestration-query` параметры `ingress.enabled=true` и `ingress.separateIngress=true` в Helm values;
+2. выполните `helm upgrade`;
+3. проверьте, что создан отдельный объект `Ingress` для `orchestration-query`;
+4. убедитесь, что `gateway`-маршруты не изменились;
+5. после публикации проверьте `/docs`, `/metrics` и `/api/v1/health/ready` у нового ingress endpoint.
+
+Если сервис не появился снаружи:
+
+1. проверьте `apiServices[].expose=true`;
+2. проверьте `apiServices[].ingress.enabled=true`;
+3. проверьте `apiServices[].ingress.separateIngress=true`;
+4. проверьте, что `Service` и `Ingress` ссылаются на один и тот же `component`.
+
 ## Поднят не тот API-сервис
 
 Если контейнер стартует, но отвечает “не тем” Swagger, не тем набором ручек или не тем `service.name`, проверяйте цепочку запуска сверху вниз:

@@ -71,6 +71,24 @@ Ingress по умолчанию публикует только `gateway`-сер
 - service mesh/ingress routing;
 - внутренней отладкой и административным доступом.
 
+Если нужен отдельный ingress для `orchestration-query-api`, используйте service-specific режим:
+
+```yaml
+apiServices:
+  - name: orchestration-query
+    enabled: true
+    component: orchestration-query
+    serviceName: orchestration-query-api
+    expose: true
+    ingress:
+      enabled: true
+      separateIngress: true
+      path: /orchestration-query
+      pathType: Prefix
+```
+
+В этом режиме chart создаст отдельный `Ingress` для query-side сервиса, а gateway останется независимой внешней точкой входа.
+
 ## Миграции
 
 - При локальном запуске через Docker выполняется `uv run alembic upgrade head`

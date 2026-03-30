@@ -15,7 +15,7 @@ spec:
       http:
         paths:
           {{- range $service := $.Values.apiServices }}
-          {{- if and $service.enabled $service.expose $service.ingress.enabled }}
+          {{- if and $service.enabled $service.expose $service.ingress.enabled (not $service.ingress.separateIngress) }}
           - path: {{ $service.ingress.path }}
             pathType: {{ $service.ingress.pathType }}
             backend:
@@ -28,4 +28,35 @@ spec:
     {{- end }}
   tls:
     {{- toYaml .Values.ingress.tls | nindent 4 }}
+{{- end }}
+{{- range $service := .Values.apiServices }}
+{{- if and $service.enabled $service.expose $service.ingress.enabled $service.ingress.separateIngress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "agentOps.fullname" $ }}-{{ $service.name }}
+  labels:
+    {{- include "agentOps.labels" $ | nindent 4 }}
+    component: {{ $service.name }}
+  annotations:
+    {{- toYaml $.Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ $.Values.ingress.className }}
+  rules:
+    {{- range $.Values.ingress.hosts }}
+    - host: {{ .host }}
+      http:
+        paths:
+          - path: {{ $service.ingress.path }}
+            pathType: {{ $service.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "agentOps.fullname" $ }}-{{ $service.name }}
+                port:
+                  number: {{ $.Values.api.service.port }}
+    {{- end }}
+  tls:
+    {{- toYaml $.Values.ingress.tls | nindent 4 }}
+{{- end }}
 {{- end }}
