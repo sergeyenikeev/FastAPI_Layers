@@ -2,12 +2,15 @@
 {{- if $service.enabled }}
 {{- $effectiveReplicaCount := default $.Values.api.replicaCount $service.replicaCount }}
 {{- $effectiveTerminationGracePeriodSeconds := default $.Values.api.terminationGracePeriodSeconds $service.terminationGracePeriodSeconds }}
+{{- $effectiveRevisionHistoryLimit := default $.Values.api.revisionHistoryLimit $service.revisionHistoryLimit }}
+{{- $effectiveStrategy := mergeOverwrite (deepCopy $.Values.api.strategy) (default (dict) $service.strategy) }}
 {{- $effectivePodAnnotations := mergeOverwrite (deepCopy $.Values.api.podAnnotations) (default (dict) $service.podAnnotations) }}
 {{- $effectiveResources := default $.Values.api.resources $service.resources }}
 {{- $effectiveProbes := mergeOverwrite (deepCopy $.Values.api.probes) (default (dict) $service.probes) }}
 {{- $effectiveNodeSelector := mergeOverwrite (deepCopy $.Values.api.nodeSelector) (default (dict) $service.nodeSelector) }}
 {{- $effectiveTolerations := concat $.Values.api.tolerations (default (list) $service.tolerations) }}
 {{- $effectiveAffinity := mergeOverwrite (deepCopy $.Values.api.affinity) (default (dict) $service.affinity) }}
+{{- $effectiveTopologySpreadConstraints := concat $.Values.api.topologySpreadConstraints (default (list) $service.topologySpreadConstraints) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,12 +22,9 @@ spec:
   # API deployment остается stateless: состояние execution и projections живет
   # вне пода, поэтому rolling updates безопасны при корректных probes.
   replicas: {{ $effectiveReplicaCount }}
-  revisionHistoryLimit: 5
+  revisionHistoryLimit: {{ $effectiveRevisionHistoryLimit }}
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    {{- toYaml $effectiveStrategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "agentOps.selectorLabels" $ | nindent 6 }}
@@ -59,6 +59,10 @@ spec:
       {{- if $effectiveTolerations }}
       tolerations:
         {{- toYaml $effectiveTolerations | nindent 8 }}
+      {{- end }}
+      {{- if $effectiveTopologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml $effectiveTopologySpreadConstraints | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ $service.name }}

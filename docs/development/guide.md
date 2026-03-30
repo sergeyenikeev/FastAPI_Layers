@@ -100,7 +100,7 @@ uv run python scripts/dev_stack.py start
 - `audit-api` отвечает только за audit read-side;
 - `gateway-api` остается агрегирующим compatibility layer.
 
-Для Kubernetes/Helm это важно не только логически, но и operationally: каждый API-сервис теперь можно отдельно тюнить по `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `podAnnotations`, `nodeSelector`, `tolerations` и `affinity`, а не только разносить по разным контейнерам. Для наследования глобального HPA оставляйте `autoscaling: {}`, а для локального отключения HPA у сервиса задавайте `autoscaling.enabled: false`.
+Для Kubernetes/Helm это важно не только логически, но и operationally: каждый API-сервис теперь можно отдельно тюнить по `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `revisionHistoryLimit`, `strategy`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity` и `topologySpreadConstraints`, а не только разносить по разным контейнерам. Для наследования глобального HPA оставляйте `autoscaling: {}`, а для локального отключения HPA у сервиса задавайте `autoscaling.enabled: false`.
 
 Для разработчика это полезно в двух сценариях:
 

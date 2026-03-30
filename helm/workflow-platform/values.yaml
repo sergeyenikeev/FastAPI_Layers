@@ -79,10 +79,17 @@ api:
       periodSeconds: 15
       failureThreshold: 3
   terminationGracePeriodSeconds: 45
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   podAnnotations: {}
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  topologySpreadConstraints: []
 
 apiServices:
   # Каждый API bounded context разворачивается отдельно. Gateway оставлен как
@@ -102,10 +109,13 @@ apiServices:
     resources: {}
     probes: {}
     terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
     podAnnotations: {}
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    topologySpreadConstraints: []
     # Пустой объект означает "унаследовать глобальный autoscaling.*" без
     # неявного сброса enabled в null.
     autoscaling: {}
@@ -127,10 +137,13 @@ apiServices:
     resources: {}
     probes: {}
     terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
     podAnnotations: {}
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    topologySpreadConstraints: []
     autoscaling: {}
     ingress:
       enabled: false
@@ -156,10 +169,13 @@ apiServices:
         memory: 768Mi
     probes: {}
     terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
     podAnnotations: {}
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    topologySpreadConstraints: []
     autoscaling:
       enabled: true
       minReplicas: 2
@@ -189,10 +205,13 @@ apiServices:
         memory: 1Gi
     probes: {}
     terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
     podAnnotations: {}
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    topologySpreadConstraints: []
     autoscaling:
       enabled: true
       minReplicas: 2
@@ -220,10 +239,13 @@ apiServices:
     resources: {}
     probes: {}
     terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
     podAnnotations: {}
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    topologySpreadConstraints: []
     autoscaling: {}
     ingress:
       enabled: false
@@ -243,10 +265,13 @@ apiServices:
     resources: {}
     probes: {}
     terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
     podAnnotations: {}
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    topologySpreadConstraints: []
     autoscaling: {}
     ingress:
       enabled: false
@@ -266,10 +291,13 @@ apiServices:
     resources: {}
     probes: {}
     terminationGracePeriodSeconds: null
+    revisionHistoryLimit: null
+    strategy: {}
     podAnnotations: {}
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    topologySpreadConstraints: []
     autoscaling: {}
     ingress:
       enabled: false

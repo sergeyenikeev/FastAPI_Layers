@@ -112,7 +112,7 @@ flowchart LR
 - `apiServices[].ingress.separateIngress=false` оставляет сервис внутри общего ingress-объекта;
 - `apiServices[].ingress.separateIngress=true` создает отдельный Ingress только для этого сервиса.
 - у отдельного ingress можно переопределить `hosts`, `annotations`, `className` и `tls` на уровне конкретного сервиса.
-- на уровне сервиса также можно отдельно переопределить `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `podAnnotations`, `nodeSelector`, `tolerations` и `affinity`;
+- на уровне сервиса также можно отдельно переопределить `replicaCount`, `resources`, `probes`, `autoscaling`, `terminationGracePeriodSeconds`, `revisionHistoryLimit`, `strategy`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity` и `topologySpreadConstraints`;
 - для наследования глобального HPA сервис оставляет `autoscaling: {}`, а для явного отключения задает `autoscaling.enabled: false`.
 
 Этот режим особенно полезен для `orchestration-query-api`, когда read-side нужно открыть внутренним пользователям или платформенному tooling отдельно от внешнего gateway.

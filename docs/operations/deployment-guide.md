@@ -125,6 +125,7 @@ apiServices:
 - `orchestration-query-api` нужно масштабировать отдельно под read-traffic.
 - `registry-api` или `audit-api` нужно закрепить на специальных нодах или с особыми tolerations;
 - конкретному сервису нужен другой `terminationGracePeriodSeconds` или собственные pod annotations.
+- конкретному сервису нужен свой `strategy`, `revisionHistoryLimit` или распределение по зонам через `topologySpreadConstraints`.
 
 Пример:
 
@@ -191,6 +192,27 @@ apiServices:
               labelSelector:
                 matchLabels:
                   component: registry
+```
+
+Для сервисов с более чувствительным rollout можно переопределить историю ревизий, стратегию обновления и spread constraints:
+
+```yaml
+apiServices:
+  - name: orchestration-query
+    enabled: true
+    revisionHistoryLimit: 10
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 2
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            component: orchestration-query
 ```
 
 Если нужно оставить глобальный HPA включенным, но отключить его у конкретного сервиса, используйте:
