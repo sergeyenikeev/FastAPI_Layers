@@ -40,11 +40,11 @@ metadata:
     {{- include "agentOps.labels" $ | nindent 4 }}
     component: {{ $service.name }}
   annotations:
-    {{- toYaml $.Values.ingress.annotations | nindent 4 }}
+    {{- toYaml (default $.Values.ingress.annotations $service.ingress.annotations) | nindent 4 }}
 spec:
-  ingressClassName: {{ $.Values.ingress.className }}
+  ingressClassName: {{ default $.Values.ingress.className $service.ingress.className }}
   rules:
-    {{- range $.Values.ingress.hosts }}
+    {{- range (default $.Values.ingress.hosts $service.ingress.hosts) }}
     - host: {{ .host }}
       http:
         paths:
@@ -57,6 +57,6 @@ spec:
                   number: {{ $.Values.api.service.port }}
     {{- end }}
   tls:
-    {{- toYaml $.Values.ingress.tls | nindent 4 }}
+    {{- toYaml (default $.Values.ingress.tls $service.ingress.tls) | nindent 4 }}
 {{- end }}
 {{- end }}

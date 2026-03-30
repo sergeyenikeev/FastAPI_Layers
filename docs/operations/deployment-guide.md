@@ -89,6 +89,91 @@ apiServices:
 
 В этом режиме chart создаст отдельный `Ingress` для query-side сервиса, а gateway останется независимой внешней точкой входа.
 
+Если query-side нужно публиковать на отдельном внутреннем hostname, можно переопределить ingress-параметры прямо у сервиса:
+
+```yaml
+apiServices:
+  - name: orchestration-query
+    enabled: true
+    component: orchestration-query
+    serviceName: orchestration-query-api
+    expose: true
+    ingress:
+      enabled: true
+      separateIngress: true
+      className: nginx-internal
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-internal
+      hosts:
+        - host: orchestration-query.internal.example.com
+      tls:
+        - secretName: orchestration-query-tls
+          hosts:
+            - orchestration-query.internal.example.com
+      path: /
+      pathType: Prefix
+```
+
+Если эти поля не заданы, отдельный ingress унаследует глобальные настройки `ingress.*` chart-а.
+
+### Per-service tuning для API-сервисов
+
+Теперь chart позволяет переопределять operational-профиль прямо у конкретного API-сервиса. Это полезно, когда:
+
+- `gateway` должен держать больше реплик, чем внутренние API;
+- `orchestration-api` можно держать компактнее, потому что тяжелое выполнение уже вынесено в `execution-worker`;
+- `orchestration-query-api` нужно масштабировать отдельно под read-traffic.
+
+Пример:
+
+```yaml
+apiServices:
+  - name: gateway
+    enabled: true
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 65
+
+  - name: orchestration-query
+    enabled: true
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 300m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    probes:
+      readiness:
+        path: /api/v1/health/ready
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+```
+
+Если эти поля не заданы, сервис наследует глобальные значения из `api.*` и `autoscaling.*`. Для этого оставляйте `resources: {}`, `probes: {}` и `autoscaling: {}`.
+
+Если нужно оставить глобальный HPA включенным, но отключить его у конкретного сервиса, используйте:
+
+```yaml
+apiServices:
+  - name: audit
+    enabled: true
+    autoscaling:
+      enabled: false
+```
+
 ## Миграции
 
 - При локальном запуске через Docker выполняется `uv run alembic upgrade head`

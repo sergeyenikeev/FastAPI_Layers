@@ -111,6 +111,9 @@ flowchart LR
 - `apiServices[].ingress.enabled=true` включает ingress-маршрут для сервиса;
 - `apiServices[].ingress.separateIngress=false` оставляет сервис внутри общего ingress-объекта;
 - `apiServices[].ingress.separateIngress=true` создает отдельный Ingress только для этого сервиса.
+- у отдельного ingress можно переопределить `hosts`, `annotations`, `className` и `tls` на уровне конкретного сервиса.
+- на уровне сервиса также можно отдельно переопределить `replicaCount`, `resources`, `probes` и `autoscaling`;
+- для наследования глобального HPA сервис оставляет `autoscaling: {}`, а для явного отключения задает `autoscaling.enabled: false`.
 
 Этот режим особенно полезен для `orchestration-query-api`, когда read-side нужно открыть внутренним пользователям или платформенному tooling отдельно от внешнего gateway.
 

@@ -22,17 +22,47 @@
 Если внутренним клиентам нужен прямой доступ к `GET /api/v1/executions*`, но публичный gateway менять не хочется:
 
 1. включите у `orchestration-query` параметры `ingress.enabled=true` и `ingress.separateIngress=true` в Helm values;
-2. выполните `helm upgrade`;
-3. проверьте, что создан отдельный объект `Ingress` для `orchestration-query`;
-4. убедитесь, что `gateway`-маршруты не изменились;
-5. после публикации проверьте `/docs`, `/metrics` и `/api/v1/health/ready` у нового ingress endpoint.
+2. при необходимости задайте отдельные `hosts`, `annotations`, `className` и `tls`;
+3. выполните `helm upgrade`;
+4. проверьте, что создан отдельный объект `Ingress` для `orchestration-query`;
+5. убедитесь, что `gateway`-маршруты не изменились;
+6. после публикации проверьте `/docs`, `/metrics` и `/api/v1/health/ready` у нового ingress endpoint.
 
 Если сервис не появился снаружи:
 
 1. проверьте `apiServices[].expose=true`;
 2. проверьте `apiServices[].ingress.enabled=true`;
 3. проверьте `apiServices[].ingress.separateIngress=true`;
-4. проверьте, что `Service` и `Ingress` ссылаются на один и тот же `component`.
+4. проверьте, что `hosts` и `tls` действительно заданы для нужного hostname;
+5. проверьте, что `Service` и `Ingress` ссылаются на один и тот же `component`.
+
+## Нужно отдельно настроить ресурсы или scaling для API-сервиса
+
+Если один API-сервис нужно тюнить иначе, чем остальные:
+
+1. добавьте override прямо в нужный элемент `apiServices[]`;
+2. используйте `replicaCount`, `resources`, `probes` и `autoscaling`;
+3. выполните `helm upgrade`;
+4. проверьте итоговые `Deployment` и `HPA`;
+5. убедитесь, что health probes соответствуют реальному runtime конкретного сервиса.
+
+Если сервис должен просто наследовать общий профиль, оставляйте пустые override-объекты:
+
+```yaml
+apiServices:
+  - name: registry
+    autoscaling: {}
+    resources: {}
+    probes: {}
+```
+
+Особенно часто это нужно для:
+
+1. `gateway`, если на нем основной внешний трафик;
+2. `orchestration-query-api`, если read-side history читают чаще, чем создают execution;
+3. `orchestration-api`, если command ingress должен оставаться легким и дешевым.
+
+Если у конкретного API-сервиса HPA вообще не нужен, задайте `autoscaling.enabled=false` прямо внутри соответствующего `apiServices[]`.
 
 ## Поднят не тот API-сервис
 

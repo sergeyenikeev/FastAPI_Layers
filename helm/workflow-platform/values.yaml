@@ -98,74 +98,153 @@ apiServices:
     component: gateway
     serviceName: gateway-api
     expose: true
+    replicaCount: null
+    resources: {}
+    probes: {}
+    # Пустой объект означает "унаследовать глобальный autoscaling.*" без
+    # неявного сброса enabled в null.
+    autoscaling: {}
     ingress:
       enabled: true
       path: /
       pathType: Prefix
       separateIngress: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
   - name: registry
     enabled: true
     component: registry
     serviceName: registry-api
     expose: true
+    replicaCount: null
+    resources: {}
+    probes: {}
+    autoscaling: {}
     ingress:
       enabled: false
       path: /registry
       pathType: Prefix
       separateIngress: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
   - name: orchestration
     enabled: true
     component: orchestration
     serviceName: orchestration-api
     expose: true
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 384Mi
+      limits:
+        cpu: "1"
+        memory: 768Mi
+    probes: {}
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 70
     ingress:
       enabled: false
       path: /orchestration
       pathType: Prefix
       separateIngress: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
   - name: orchestration-query
     enabled: true
     component: orchestration-query
     serviceName: orchestration-query-api
     expose: true
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 300m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    probes: {}
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 65
     ingress:
       enabled: false
       path: /orchestration-query
       pathType: Prefix
       # Для read-side оркестрации полезно уметь включать отдельную публикацию без смешивания
       # с публичным gateway ingress. Когда separateIngress=true, chart создаст отдельный
-      # Ingress только для этого сервиса по ingress.hosts/tls ниже.
+      # Ingress только для этого сервиса. Если ingress.hosts/tls/annotations/className ниже
+      # не заданы, сервис унаследует глобальные ingress-настройки chart-а.
       separateIngress: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
   - name: monitoring
     enabled: true
     component: monitoring
     serviceName: monitoring-api
     expose: true
+    replicaCount: null
+    resources: {}
+    probes: {}
+    autoscaling: {}
     ingress:
       enabled: false
       path: /monitoring
       pathType: Prefix
       separateIngress: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
   - name: alerting
     enabled: true
     component: alerting
     serviceName: alerting-api
     expose: true
+    replicaCount: null
+    resources: {}
+    probes: {}
+    autoscaling: {}
     ingress:
       enabled: false
       path: /alerting
       pathType: Prefix
       separateIngress: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
   - name: audit
     enabled: true
     component: audit
     serviceName: audit-api
     expose: true
+    replicaCount: null
+    resources: {}
+    probes: {}
+    autoscaling: {}
     ingress:
       enabled: false
       path: /audit
       pathType: Prefix
       separateIngress: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
 
 workers:
   # Каждый worker описывается отдельной декларацией, чтобы chart мог масштабировать

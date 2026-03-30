@@ -1,16 +1,16 @@
-{{- range .Values.apiServices }}
-{{- if .enabled }}
+{{- range $service := .Values.apiServices }}
+{{- if $service.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "agentOps.fullname" $ }}-{{ .name }}
+  name: {{ include "agentOps.fullname" $ }}-{{ $service.name }}
   labels:
     {{- include "agentOps.labels" $ | nindent 4 }}
-    component: {{ .name }}
+    component: {{ $service.name }}
 spec:
   # API deployment остается stateless: состояние execution и projections живет
   # вне пода, поэтому rolling updates безопасны при корректных probes.
-  replicas: {{ $.Values.api.replicaCount }}
+  replicas: {{ default $.Values.api.replicaCount $service.replicaCount }}
   revisionHistoryLimit: 5
   strategy:
     type: RollingUpdate
@@ -20,12 +20,12 @@ spec:
   selector:
     matchLabels:
       {{- include "agentOps.selectorLabels" $ | nindent 6 }}
-      component: {{ .name }}
+      component: {{ $service.name }}
   template:
     metadata:
       labels:
         {{- include "agentOps.selectorLabels" $ | nindent 8 }}
-        component: {{ .name }}
+        component: {{ $service.name }}
       annotations:
         # Помимо ServiceMonitor сохраняем стандартные prometheus annotations,
         # чтобы chart был совместим и с более простыми Prometheus инсталляциями.
@@ -44,8 +44,10 @@ spec:
       terminationGracePeriodSeconds: {{ $.Values.api.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      {{- $effectiveResources := default $.Values.api.resources $service.resources }}
+      {{- $effectiveProbes := mergeOverwrite (deepCopy $.Values.api.probes) (default (dict) $service.probes) }}
       containers:
-        - name: {{ .name }}
+        - name: {{ $service.name }}
           image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
           command: ["/bin/sh", "docker/start-api.sh"]
@@ -62,39 +64,39 @@ spec:
             # контейнерного образа. Благодаря этому chart может развертывать
             # несколько API-сервисов без сборки отдельных image per service.
             - name: APP_COMPONENT
-              value: {{ .component | quote }}
+              value: {{ $service.component | quote }}
             # SERVICE_NAME нужен не только для логического имени сервиса, но и
             # для observability: он идет в structured logs, heartbeat payload и
             # OpenTelemetry resource/service.name.
             - name: SERVICE_NAME
-              value: {{ .serviceName | quote }}
+              value: {{ $service.serviceName | quote }}
           resources:
-            {{- toYaml $.Values.api.resources | nindent 12 }}
+            {{- toYaml $effectiveResources | nindent 12 }}
           securityContext:
             {{- toYaml $.Values.securityContext | nindent 12 }}
           startupProbe:
             httpGet:
-              path: {{ $.Values.api.probes.startup.path }}
+              path: {{ $effectiveProbes.startup.path }}
               port: http
-            initialDelaySeconds: {{ $.Values.api.probes.startup.initialDelaySeconds }}
-            periodSeconds: {{ $.Values.api.probes.startup.periodSeconds }}
-            failureThreshold: {{ $.Values.api.probes.startup.failureThreshold }}
+            initialDelaySeconds: {{ $effectiveProbes.startup.initialDelaySeconds }}
+            periodSeconds: {{ $effectiveProbes.startup.periodSeconds }}
+            failureThreshold: {{ $effectiveProbes.startup.failureThreshold }}
           livenessProbe:
             httpGet:
-              path: {{ $.Values.api.probes.liveness.path }}
+              path: {{ $effectiveProbes.liveness.path }}
               port: http
-            initialDelaySeconds: {{ $.Values.api.probes.liveness.initialDelaySeconds }}
-            periodSeconds: {{ $.Values.api.probes.liveness.periodSeconds }}
-            failureThreshold: {{ $.Values.api.probes.liveness.failureThreshold }}
+            initialDelaySeconds: {{ $effectiveProbes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ $effectiveProbes.liveness.periodSeconds }}
+            failureThreshold: {{ $effectiveProbes.liveness.failureThreshold }}
           readinessProbe:
             # Readiness смотрит в бизнес-health endpoint, а не просто в открытый
             # порт: pod считается готовым только если runtime может обслуживать API.
             httpGet:
-              path: {{ $.Values.api.probes.readiness.path }}
+              path: {{ $effectiveProbes.readiness.path }}
               port: http
-            initialDelaySeconds: {{ $.Values.api.probes.readiness.initialDelaySeconds }}
-            periodSeconds: {{ $.Values.api.probes.readiness.periodSeconds }}
-            failureThreshold: {{ $.Values.api.probes.readiness.failureThreshold }}
+            initialDelaySeconds: {{ $effectiveProbes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ $effectiveProbes.readiness.periodSeconds }}
+            failureThreshold: {{ $effectiveProbes.readiness.failureThreshold }}
       affinity:
         podAntiAffinity:
           # Предпочтительно раскладываем API по разным нодам, чтобы одиночный
@@ -106,7 +108,7 @@ spec:
                 labelSelector:
                   matchLabels:
                     {{- include "agentOps.selectorLabels" $ | nindent 20 }}
-                    component: {{ .name }}
+                    component: {{ $service.name }}
 ---
 {{- end }}
 {{- end }}
