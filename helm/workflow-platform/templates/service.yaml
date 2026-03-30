@@ -1,17 +1,22 @@
+{{- range .Values.apiServices }}
+{{- if and .enabled .expose }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "agentOps.fullname" . }}
+  name: {{ include "agentOps.fullname" $ }}-{{ .name }}
   labels:
-    {{- include "agentOps.labels" . | nindent 4 }}
+    {{- include "agentOps.labels" $ | nindent 4 }}
+    component: {{ .name }}
 spec:
-  type: {{ .Values.api.service.type }}
+  type: {{ $.Values.api.service.type }}
   selector:
-    {{- include "agentOps.selectorLabels" . | nindent 4 }}
-    component: api
+    {{- include "agentOps.selectorLabels" $ | nindent 4 }}
+    component: {{ .name }}
   ports:
     - name: http
-      port: {{ .Values.api.service.port }}
-      targetPort: {{ .Values.api.service.targetPort }}
+      port: {{ $.Values.api.service.port }}
+      targetPort: {{ $.Values.api.service.targetPort }}
       protocol: TCP
-
+---
+{{- end }}
+{{- end }}

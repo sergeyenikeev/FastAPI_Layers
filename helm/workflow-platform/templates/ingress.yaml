@@ -14,17 +14,18 @@ spec:
     - host: {{ .host }}
       http:
         paths:
-          {{- range .paths }}
-          - path: {{ .path }}
-            pathType: {{ .pathType }}
+          {{- range $service := $.Values.apiServices }}
+          {{- if and $service.enabled $service.expose $service.ingress.enabled }}
+          - path: {{ $service.ingress.path }}
+            pathType: {{ $service.ingress.pathType }}
             backend:
               service:
-                name: {{ include "agentOps.fullname" $ }}
+                name: {{ include "agentOps.fullname" $ }}-{{ $service.name }}
                 port:
                   number: {{ $.Values.api.service.port }}
+          {{- end }}
           {{- end }}
     {{- end }}
   tls:
     {{- toYaml .Values.ingress.tls | nindent 4 }}
 {{- end }}
-

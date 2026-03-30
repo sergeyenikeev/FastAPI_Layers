@@ -12,11 +12,15 @@
 
 ## Топология
 
-- `registry` обрабатывает CRUD-команды и публикует события в Kafka
-- `orchestration` запускает распределенные сценарии и публикует события выполнения, шагов, стоимости, метрик и вызовов внешних обработчиков
-- `monitoring` потребляет потоки метрик и телеметрии для поиска аномалий и дрейфа
-- `alerting` выполняет дедупликацию сигналов и маршрутизацию уведомлений
-- `projections` материализует модели чтения в PostgreSQL для всех API
+- `gateway-api` — переходный совместимый вход, агрегирующий все bounded context API в одном процессе для legacy-сценариев и обратной совместимости
+- `registry-api` — отдельный микросервис каталога и command/read-side API для агентов, моделей, графов, deployment-ов, инструментов и окружений
+- `orchestration-api` — отдельный микросервис запуска execution run и чтения materialized истории выполнений
+- `monitoring-api` — отдельный микросервис health, performance, cost, anomaly и drift read models
+- `alerting-api` — отдельный микросервис просмотра alert read model
+- `audit-api` — отдельный микросервис просмотра audit trail
+- `projection-worker` — consumer materialized read-side в PostgreSQL
+- `analytics-worker` — consumer secondary metrics, anomaly и drift pipelines
+- `alerts-worker` — consumer alert processing и deduplication
 
 ### Схема выполнения сценария
 
@@ -46,6 +50,32 @@ flowchart LR
 - Контур записи: `FastAPI` валидирует команду и публикует событие в Kafka
 - Контур чтения: потребители проекций материализуют модели чтения в PostgreSQL
 - API читает только проекции PostgreSQL и не обращается к Kafka напрямую
+
+## Микросервисная топология
+
+После рефакторинга проект больше не ограничен modular monolith runtime. Сейчас код и локальный deployment-контур поддерживают отдельные сервисные entrypoint-ы:
+
+- `app.services.registry_api`
+- `app.services.orchestration_api`
+- `app.services.monitoring_api`
+- `app.services.alerting_api`
+- `app.services.audit_api`
+
+Локально они публикуются на портах:
+
+- `:8080` — compatibility gateway
+- `:8081` — registry
+- `:8082` — orchestration
+- `:8083` — monitoring
+- `:8084` — alerting
+- `:8085` — audit
+
+Это дает несколько важных эффектов:
+
+- можно масштабировать API bounded context-ы независимо друг от друга;
+- можно разворачивать только нужные сервисы в изолированных namespace или кластерах;
+- observability и ingress-политики могут настраиваться на уровень конкретного сервиса;
+- Helm и Docker Compose теперь повторяют целевую микросервисную схему, а не только логическую модульность кода.
 
 ## Компромиссы и решения
 

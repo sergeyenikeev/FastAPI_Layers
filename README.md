@@ -51,6 +51,24 @@
 
 Документация Swagger доступна у каждого сервиса на `/docs`, а переходный gateway по-прежнему остается на `http://localhost:8080/docs`.
 
+## Микросервисная топология
+
+Проект больше не ограничен только modular monolith runtime. Сейчас он поддерживает отдельные API-сервисы:
+
+- `registry-api`
+- `orchestration-api`
+- `monitoring-api`
+- `alerting-api`
+- `audit-api`
+
+и отдельные worker-сервисы:
+
+- `projection-worker`
+- `analytics-worker`
+- `alerts-worker`
+
+`gateway-api` сохранен как совместимый вход для переходного периода, чтобы существующие интеграции и локальные сценарии не ломались одномоментно.
+
 ### Единый bootstrap через uv
 
 Для локальной разработки рекомендуется использовать единый bootstrap-скрипт:

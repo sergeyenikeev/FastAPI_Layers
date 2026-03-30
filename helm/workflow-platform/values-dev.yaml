@@ -1,7 +1,6 @@
 config:
   appEnv: dev
   debug: "true"
-  serviceName: workflow-api-dev
 
 api:
   replicaCount: 1
@@ -63,9 +62,6 @@ keda:
 ingress:
   hosts:
     - host: workflow.local
-      paths:
-        - path: /
-          pathType: Prefix
   tls: []
 
 serviceMonitor:

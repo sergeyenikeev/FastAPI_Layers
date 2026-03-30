@@ -17,4 +17,3 @@ data:
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelExporterOtlpEndpoint | quote }}
   MODEL_PROBE_URLS: {{ .Values.config.modelProbeUrls | quote }}
   ALERT_COOLDOWN_SECONDS: {{ .Values.config.alertCooldownSeconds | quote }}
-

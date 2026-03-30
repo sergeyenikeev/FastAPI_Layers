@@ -34,7 +34,6 @@ config:
   otelExporterOtlpEndpoint: http://otel-collector.otel.svc.cluster.local:4317
   modelProbeUrls: ""
   alertCooldownSeconds: "300"
-  serviceName: workflow-api
 
 podSecurityContext:
   runAsNonRoot: true
@@ -84,6 +83,65 @@ api:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+apiServices:
+  # Каждый API bounded context разворачивается отдельно. Gateway оставлен как
+  # переходный слой совместимости, а остальные сервисы можно масштабировать и
+  # публиковать независимо.
+  - name: gateway
+    enabled: true
+    component: gateway
+    serviceName: gateway-api
+    expose: true
+    ingress:
+      enabled: true
+      path: /
+      pathType: Prefix
+  - name: registry
+    enabled: true
+    component: registry
+    serviceName: registry-api
+    expose: true
+    ingress:
+      enabled: false
+      path: /registry
+      pathType: Prefix
+  - name: orchestration
+    enabled: true
+    component: orchestration
+    serviceName: orchestration-api
+    expose: true
+    ingress:
+      enabled: false
+      path: /orchestration
+      pathType: Prefix
+  - name: monitoring
+    enabled: true
+    component: monitoring
+    serviceName: monitoring-api
+    expose: true
+    ingress:
+      enabled: false
+      path: /monitoring
+      pathType: Prefix
+  - name: alerting
+    enabled: true
+    component: alerting
+    serviceName: alerting-api
+    expose: true
+    ingress:
+      enabled: false
+      path: /alerting
+      pathType: Prefix
+  - name: audit
+    enabled: true
+    component: audit
+    serviceName: audit-api
+    expose: true
+    ingress:
+      enabled: false
+      path: /audit
+      pathType: Prefix
 
 workers:
   # Каждый worker описывается отдельной декларацией, чтобы chart мог масштабировать

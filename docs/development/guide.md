@@ -11,7 +11,7 @@
 - Docker и Docker Compose
 - Git
 - GNU Make или совместимый `make`
-- Доступ к локальным портам `5432`, `6379`, `8080`, `9090`, `9092`
+- Доступ к локальным портам `5432`, `6379`, `8080-8085`, `9090`, `9092`
 
 ## Быстрый старт для разработчика
 
@@ -53,9 +53,16 @@ make migrations-upgrade
 
 6. Проверьте, что приложение отвечает:
 
-- API: `http://localhost:8080`
-- OpenAPI: `http://localhost:8080/docs`
-- Метрики: `http://localhost:8080/metrics`
+- Gateway API: `http://localhost:8080`
+- Registry API: `http://localhost:8081`
+- Orchestration API: `http://localhost:8082`
+- Monitoring API: `http://localhost:8083`
+- Alerting API: `http://localhost:8084`
+- Audit API: `http://localhost:8085`
+- Swagger gateway: `http://localhost:8080/docs`
+- Swagger registry: `http://localhost:8081/docs`
+- Swagger orchestration: `http://localhost:8082/docs`
+- Метрики gateway: `http://localhost:8080/metrics`
 - Prometheus: `http://localhost:9090`
 
 ## Режимы запуска
@@ -78,6 +85,22 @@ uv run python scripts/dev_stack.py start
 - `uv run python scripts/dev_stack.py smoke` прогоняет только smoke-проверку уже поднятого окружения
 - `uv run python scripts/dev_stack.py stop` останавливает локальный стек
 - `uv run python scripts/dev_stack.py stop --volumes` останавливает стек и удаляет volumes
+
+### Микросервисный режим разработки
+
+После перехода на микросервисную архитектуру bounded context-ы API поднимаются как отдельные процессы и контейнеры. Это означает:
+
+- `registry-api` отвечает только за реестровый контур;
+- `orchestration-api` отвечает только за execution-контур;
+- `monitoring-api` отвечает только за monitoring read-side и health;
+- `alerting-api` отвечает только за alert read-side;
+- `audit-api` отвечает только за audit read-side;
+- `gateway-api` остается агрегирующим compatibility layer.
+
+Для разработчика это полезно в двух сценариях:
+
+- можно локально проверять только один bounded context через отдельный Swagger;
+- можно независимо смотреть логи и health конкретного сервиса, а не всего бывшего монолита.
 
 ### Какие demo-данные создает локальный seed
 
@@ -412,7 +435,8 @@ uv run pre-commit install
 ### Логи
 
 - Логи структурированы и подходят для машинной обработки.
-- Для локальной отладки смотрите вывод `docker compose logs -f api`.
+- Для локальной отладки gateway смотрите `docker compose logs -f api-gateway`.
+- Для конкретных API-сервисов используйте `docker compose logs -f registry-api`, `orchestration-api`, `monitoring-api`, `alerting-api`, `audit-api`.
 - Для воркеров используйте `docker compose logs -f worker-projection`, `worker-analytics`, `worker-alerts`.
 
 ### Проверка Kafka

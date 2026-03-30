@@ -1,14 +1,16 @@
+{{- range .Values.apiServices }}
+{{- if .enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "agentOps.fullname" . }}-api
+  name: {{ include "agentOps.fullname" $ }}-{{ .name }}
   labels:
-    {{- include "agentOps.labels" . | nindent 4 }}
-    component: api
+    {{- include "agentOps.labels" $ | nindent 4 }}
+    component: {{ .name }}
 spec:
   # API deployment остается stateless: состояние execution и projections живет
   # вне пода, поэтому rolling updates безопасны при корректных probes.
-  replicas: {{ .Values.api.replicaCount }}
+  replicas: {{ $.Values.api.replicaCount }}
   revisionHistoryLimit: 5
   strategy:
     type: RollingUpdate
@@ -17,74 +19,76 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      {{- include "agentOps.selectorLabels" . | nindent 6 }}
-      component: api
+      {{- include "agentOps.selectorLabels" $ | nindent 6 }}
+      component: {{ .name }}
   template:
     metadata:
       labels:
-        {{- include "agentOps.selectorLabels" . | nindent 8 }}
-        component: api
+        {{- include "agentOps.selectorLabels" $ | nindent 8 }}
+        component: {{ .name }}
       annotations:
         # Помимо ServiceMonitor сохраняем стандартные prometheus annotations,
         # чтобы chart был совместим и с более простыми Prometheus инсталляциями.
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "8080"
-        {{- toYaml .Values.api.podAnnotations | nindent 8 }}
+        {{- toYaml $.Values.api.podAnnotations | nindent 8 }}
     spec:
-      {{- if .Values.imagePullSecrets }}
+      {{- if $.Values.imagePullSecrets }}
       imagePullSecrets:
-        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+        {{- toYaml $.Values.imagePullSecrets | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "agentOps.serviceAccountName" . }}
+      serviceAccountName: {{ include "agentOps.serviceAccountName" $ }}
       # У приложения есть время корректно завершить HTTP-запросы и закрыть
       # Kafka/DB подключения до SIGKILL.
-      terminationGracePeriodSeconds: {{ .Values.api.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ $.Values.api.terminationGracePeriodSeconds }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: api
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: {{ .name }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
           command: ["/bin/sh", "docker/start-api.sh"]
           ports:
             - name: http
               containerPort: 8080
           envFrom:
             - configMapRef:
-                name: {{ include "agentOps.fullname" . }}-config
+                name: {{ include "agentOps.fullname" $ }}-config
             - secretRef:
-                name: {{ .Values.existingSecretName }}
+                name: {{ $.Values.existingSecretName }}
           env:
+            - name: APP_COMPONENT
+              value: {{ .component | quote }}
             - name: SERVICE_NAME
-              value: {{ .Values.config.serviceName | quote }}
+              value: {{ .serviceName | quote }}
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            {{- toYaml $.Values.api.resources | nindent 12 }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml $.Values.securityContext | nindent 12 }}
           startupProbe:
             httpGet:
-              path: {{ .Values.api.probes.startup.path }}
+              path: {{ $.Values.api.probes.startup.path }}
               port: http
-            initialDelaySeconds: {{ .Values.api.probes.startup.initialDelaySeconds }}
-            periodSeconds: {{ .Values.api.probes.startup.periodSeconds }}
-            failureThreshold: {{ .Values.api.probes.startup.failureThreshold }}
+            initialDelaySeconds: {{ $.Values.api.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.api.probes.startup.periodSeconds }}
+            failureThreshold: {{ $.Values.api.probes.startup.failureThreshold }}
           livenessProbe:
             httpGet:
-              path: {{ .Values.api.probes.liveness.path }}
+              path: {{ $.Values.api.probes.liveness.path }}
               port: http
-            initialDelaySeconds: {{ .Values.api.probes.liveness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.api.probes.liveness.periodSeconds }}
-            failureThreshold: {{ .Values.api.probes.liveness.failureThreshold }}
+            initialDelaySeconds: {{ $.Values.api.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.api.probes.liveness.periodSeconds }}
+            failureThreshold: {{ $.Values.api.probes.liveness.failureThreshold }}
           readinessProbe:
             # Readiness смотрит в бизнес-health endpoint, а не просто в открытый
             # порт: pod считается готовым только если runtime может обслуживать API.
             httpGet:
-              path: {{ .Values.api.probes.readiness.path }}
+              path: {{ $.Values.api.probes.readiness.path }}
               port: http
-            initialDelaySeconds: {{ .Values.api.probes.readiness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.api.probes.readiness.periodSeconds }}
-            failureThreshold: {{ .Values.api.probes.readiness.failureThreshold }}
+            initialDelaySeconds: {{ $.Values.api.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.api.probes.readiness.periodSeconds }}
+            failureThreshold: {{ $.Values.api.probes.readiness.failureThreshold }}
       affinity:
         podAntiAffinity:
           # Предпочтительно раскладываем API по разным нодам, чтобы одиночный
@@ -95,5 +99,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
                 labelSelector:
                   matchLabels:
-                    {{- include "agentOps.selectorLabels" . | nindent 20 }}
-                    component: api
+                    {{- include "agentOps.selectorLabels" $ | nindent 20 }}
+                    component: {{ .name }}
+---
+{{- end }}
+{{- end }}

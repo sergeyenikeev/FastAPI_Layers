@@ -1,7 +1,6 @@
 config:
   appEnv: prod
   debug: "false"
-  serviceName: workflow-api
 
 api:
   replicaCount: 3

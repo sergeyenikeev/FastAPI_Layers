@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 
 import pytest
@@ -12,6 +13,12 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.pool import StaticPool
+
+# `app.main` создает FastAPI app на уровне импорта. Для тестов важно заранее
+# отключить внешний OTLP exporter, иначе observability-слой успеет поднять
+# background exporter с production-like значением из `.env`.
+os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = ""
+os.environ["SERVICE_NAME"] = "test-api-bootstrap"
 
 from app.core.config import Settings
 from app.db.base import Base
@@ -52,7 +59,9 @@ def test_settings() -> Settings:
         API_KEYS=["test-key"],
         JWT_SECRET="test-secret-key-with-32-bytes-minimum",
         KAFKA_BOOTSTRAP_SERVERS=["localhost:9092"],
+        OTEL_EXPORTER_OTLP_ENDPOINT=None,
         PROMETHEUS_ENABLED=True,
+        SERVICE_NAME="test-api",
     )
 
 
